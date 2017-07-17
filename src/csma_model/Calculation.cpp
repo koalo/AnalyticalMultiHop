@@ -1,8 +1,8 @@
 /*
  * Class for determining link qualities
  *
- * Author:	Florian Meier <florian.meier@koalo.de>
- *		Copyright 2015
+ * Author:	Florian Kauer <florian.kauer@koalo.de>
+ *		Copyright 2015-2017
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -54,7 +54,7 @@ inline PetscScalar PU(PetscScalar a, PetscScalar b, PetscScalar c, PetscScalar d
 
 #undef __FUNCT__
 #define __FUNCT__ "EvaluateLink"
-inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMCircuitComponentGenericDataType *arr, const PetscScalar *xarr, UserCtx *user, Result *r, bool debug)
+inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGenericDataType *arr, const PetscScalar *xarr, UserCtx *user, Result *r, bool debug)
 {
 	PetscInt m = user->m;
 	PetscInt mb = user->mb;
@@ -68,7 +68,7 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMCircuitComponentGener
 	PetscInt keyv;
 	PetscInt offsetlink;
 	PetscErrorCode ierr;
-	ierr = DMCircuitGetComponentTypeOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
+	ierr = DMNetworkGetComponentTypeOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
 
 	LINKDATA link = (LINKDATA)(arr+offsetlink);
 
@@ -94,12 +94,12 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMCircuitComponentGener
 
 	PetscInt nconnedges;
 	const PetscInt *connedges;
-	ierr = DMCircuitGetSupportingEdges(circuitdm,v,&nconnedges,&connedges);CHKERRQ(ierr);
+	ierr = DMNetworkGetSupportingEdges(circuitdm,v,&nconnedges,&connedges);CHKERRQ(ierr);
 	for (PetscInt i = 0; i < nconnedges; i++) {
 		PetscInt e = connedges[i];
 
 		const PetscInt *cone;
-		ierr = DMCircuitGetConnectedNodes(circuitdm,e,&cone);CHKERRQ(ierr);
+		ierr = DMNetworkGetConnectedNodes(circuitdm,e,&cone);CHKERRQ(ierr);
 		PetscInt vaffected,vsource;
 		vaffected = cone[0];
 		vsource   = cone[1];
@@ -107,14 +107,14 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMCircuitComponentGener
 		if (vaffected == v) {
 			PetscInt keye;
 			PetscInt offsetrel;
-			ierr = DMCircuitGetComponentTypeOffset(circuitdm,e,0,&keye,&offsetrel);CHKERRQ(ierr);
+			ierr = DMNetworkGetComponentTypeOffset(circuitdm,e,0,&keye,&offsetrel);CHKERRQ(ierr);
 			RELATIONDATA relation = (RELATIONDATA)(arr+offsetrel);
 
 			PetscInt offsetsource,offsetsourcelink;
-			ierr = DMCircuitGetVariableOffset(circuitdm,vsource,&offsetsource);CHKERRQ(ierr);
+			ierr = DMNetworkGetVariableOffset(circuitdm,vsource,&offsetsource);CHKERRQ(ierr);
 
 			PetscInt keysourcev;
-			ierr = DMCircuitGetComponentTypeOffset(circuitdm,vsource,0,
+			ierr = DMNetworkGetComponentTypeOffset(circuitdm,vsource,0,
 					&keysourcev,&offsetsourcelink);CHKERRQ(ierr);
 			LINKDATA sourcelink = (LINKDATA)(arr+offsetsourcelink);
 
@@ -261,8 +261,8 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMCircuitComponentGener
 	PetscScalar packet_generation = link->packet_generation;
 	if(user->inverse) {
 		PetscInt vStart,vEnd,offset;
-		ierr = DMCircuitGetVertexRange(circuitdm,&vStart,&vEnd);CHKERRQ(ierr);
-		ierr = DMCircuitGetVariableOffset(circuitdm,vEnd-1,&offset);CHKERRQ(ierr);
+		ierr = DMNetworkGetVertexRange(circuitdm,&vStart,&vEnd);CHKERRQ(ierr);
+		ierr = DMNetworkGetVariableOffset(circuitdm,vEnd-1,&offset);CHKERRQ(ierr);
 
 		// for avoiding zero pivot
 		if(link->packet_generation > 1e-10) {
@@ -377,6 +377,35 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMCircuitComponentGener
 }
 
 #undef __FUNCT__
+#define __FUNCT__ "CalculatePathReliability"
+PetscErrorCode CalculatePathReliability(DM& circuitdm, DMNetworkComponentGenericDataType *arr, const PetscScalar *xarr, const PetscScalar *farr, PetscScalar& Rx, PetscInt v, PetscInt vStart)
+{
+	PetscInt      offset;
+	PetscErrorCode ierr;
+	PetscBool   ghostvtex;
+	ierr = DMNetworkIsGhostVertex(circuitdm,v,&ghostvtex);CHKERRQ(ierr);
+	PetscInt to;
+	Rx = 1;
+
+	do {
+		PetscInt keyv;
+		PetscInt offsetlink;
+		ierr = DMNetworkGetComponentTypeOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
+
+		LINKDATA link = (LINKDATA)(arr+offsetlink);
+
+		ierr = DMNetworkGetVariableOffset(circuitdm,v,&offset);CHKERRQ(ierr);
+		Rx *= xarr[offset+VAR_R]-farr[offset+VAR_R]; // gives result.Rel, see above
+
+		to = link->to;
+
+		v = to+vStart-1;
+	} while(to != 0);
+
+	PetscFunctionReturn(0);
+}
+
+#undef __FUNCT__
 #define __FUNCT__ "FormFunction"
 PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx)
 {
@@ -390,7 +419,7 @@ PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx)
 	const PetscScalar *xarr;
 	PetscScalar   *farr;
 	PetscInt      offset;
-	DMCircuitComponentGenericDataType *arr;
+	DMNetworkComponentGenericDataType *arr;
 
 	PetscFunctionBegin;
 	ierr = SNESGetDM(snes,&circuitdm);CHKERRQ(ierr);
@@ -407,16 +436,16 @@ PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx)
 	ierr = VecGetArrayRead(localX,&xarr);CHKERRQ(ierr);
 	ierr = VecGetArray(localF,&farr);CHKERRQ(ierr);
 
-	ierr = DMCircuitGetVertexRange(circuitdm,&vStart,&vEnd);CHKERRQ(ierr);
+	ierr = DMNetworkGetVertexRange(circuitdm,&vStart,&vEnd);CHKERRQ(ierr);
 	if(user->inverse) {
 		vEnd--;
 	}
 
-	ierr = DMCircuitGetComponentDataArray(circuitdm,&arr);CHKERRQ(ierr);
+	ierr = DMNetworkGetComponentDataArray(circuitdm,&arr);CHKERRQ(ierr);
 
 	for (v=vStart; v < vEnd; v++) {
 		PetscBool   ghostvtex;
-		ierr = DMCircuitIsGhostVertex(circuitdm,v,&ghostvtex);CHKERRQ(ierr);
+		ierr = DMNetworkIsGhostVertex(circuitdm,v,&ghostvtex);CHKERRQ(ierr);
 		if (ghostvtex) {
 			continue;
 		}
@@ -424,7 +453,7 @@ PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx)
 		Result result;
 		EvaluateLink(circuitdm,v,arr,xarr,user,&result,false);
 
-		ierr = DMCircuitGetVariableOffset(circuitdm,v,&offset);CHKERRQ(ierr);
+		ierr = DMNetworkGetVariableOffset(circuitdm,v,&offset);CHKERRQ(ierr);
 		farr[offset+VAR_LAMBDA]     = xarr[offset+VAR_LAMBDA] - result.lambda;
 		farr[offset+VAR_R]    = xarr[offset+VAR_R] - result.Rel;
 		farr[offset+VAR_TAU]  = xarr[offset+VAR_TAU] - result.tau;
@@ -439,34 +468,15 @@ PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx)
 		PetscInt no = 0;
 
 		for(int z = vz+1; z > vz+1-user->outerCircle; z--) {
-			PetscInt v = z;
-			PetscBool   ghostvtex;
-			ierr = DMCircuitIsGhostVertex(circuitdm,v,&ghostvtex);CHKERRQ(ierr);
-			PetscInt to;
-			PetscScalar Rx = 1;
-
-			do {
-				PetscInt keyv;
-				PetscInt offsetlink;
-				ierr = DMCircuitGetComponentTypeOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
-
-				LINKDATA link = (LINKDATA)(arr+offsetlink);
-
-				ierr = DMCircuitGetVariableOffset(circuitdm,v,&offset);CHKERRQ(ierr);
-				Rx *= xarr[offset+VAR_R]-farr[offset+VAR_R]; // gives result.Rel, see above
-
-				to = link->to;
-
-				v = to+vStart-1;
-			} while(to != 0);
-
+			PetscScalar Rx;
+			ierr = CalculatePathReliability(circuitdm,arr,xarr,farr,Rx,z,vStart);CHKERRQ(ierr);
 			no++;
 			R += Rx;
 		}
 
 		R /= no;
 
-		ierr = DMCircuitGetVariableOffset(circuitdm,vEnd,&offset);CHKERRQ(ierr);
+		ierr = DMNetworkGetVariableOffset(circuitdm,vEnd,&offset);CHKERRQ(ierr);
 
 		// in order to avoid zero pivot
 		if(R >= 0.9999) {
@@ -498,11 +508,11 @@ PetscErrorCode SetInitialValues(DM circuitdm,Vec X,void *appctx)
 	PetscInt       v, vStart, vEnd, offset;
 	Vec            localX;
 	PetscScalar    *xarr;
-	DMCircuitComponentGenericDataType *arr;
+	DMNetworkComponentGenericDataType *arr;
 	UserCtx       *user=(UserCtx*)appctx;
 
 	PetscFunctionBegin;
-	ierr = DMCircuitGetVertexRange(circuitdm,&vStart,&vEnd);CHKERRQ(ierr);
+	ierr = DMNetworkGetVertexRange(circuitdm,&vStart,&vEnd);CHKERRQ(ierr);
 	if(user->inverse) {
 		vEnd--;
 	}
@@ -514,19 +524,19 @@ PetscErrorCode SetInitialValues(DM circuitdm,Vec X,void *appctx)
 	ierr = DMGlobalToLocalEnd(circuitdm,X,INSERT_VALUES,localX);CHKERRQ(ierr);
 
 	PetscScalar firstPGen = 0;
-	ierr = DMCircuitGetComponentDataArray(circuitdm,&arr);CHKERRQ(ierr);
+	ierr = DMNetworkGetComponentDataArray(circuitdm,&arr);CHKERRQ(ierr);
 	ierr = VecGetArray(localX,&xarr);CHKERRQ(ierr);
 	for (v = vStart; v < vEnd; v++) {
 		PetscBool   ghostvtex;
-		ierr = DMCircuitIsGhostVertex(circuitdm,v,&ghostvtex);CHKERRQ(ierr);
+		ierr = DMNetworkIsGhostVertex(circuitdm,v,&ghostvtex);CHKERRQ(ierr);
 		if (ghostvtex) {
 			continue;
 		}
 
 		PetscInt offsetlink, offset;
 		PetscInt keyv;
-		ierr = DMCircuitGetVariableOffset(circuitdm,v,&offset);CHKERRQ(ierr);
-		ierr = DMCircuitGetComponentTypeOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
+		ierr = DMNetworkGetVariableOffset(circuitdm,v,&offset);CHKERRQ(ierr);
+		ierr = DMNetworkGetComponentTypeOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
 
 		LINKDATA link = (LINKDATA)(arr+offsetlink);
 
@@ -542,7 +552,7 @@ PetscErrorCode SetInitialValues(DM circuitdm,Vec X,void *appctx)
 
 	if(user->inverse) {
 		// extra variable for inverse
-		ierr = DMCircuitGetVariableOffset(circuitdm,vEnd,&offset);CHKERRQ(ierr);
+		ierr = DMNetworkGetVariableOffset(circuitdm,vEnd,&offset);CHKERRQ(ierr);
 		xarr[offset] = firstPGen;
 	}
 

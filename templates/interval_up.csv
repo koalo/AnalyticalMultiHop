@@ -1,6 +1,7 @@
-nodes	distance	intervalUp	intervalDown	MaxNumberOfBackoffs	MaxNumberOfRetransmissions	InitialBackoffExponent	MaxBackoffExponent	L	handleACKs	betterRetrans	inverse	Ptx	Pn	Pdist
-19	25	0.1	inf	3	2	3	8	60	1	1	0	0	-80	-80
-19	25	0.2	inf	3	2	3	8	60	1	1	0	0	-80	-80
-19	25	0.3	inf	3	2	3	8	60	1	1	0	0	-80	-80
-19	25	0.4	inf	3	2	3	8	60	1	1	0	0	-80	-80
-19	25	0.5	inf	3	2	3	8	60	1	1	0	0	-80	-80
+nodes	distance	intervalUp	intervalDown	MaxNumberOfBackoffs	MaxNumberOfRetransmissions	InitialBackoffExponent	MaxBackoffExponent	L	handleACKs	betterRetrans	inverse	K	Ptx	Pn	Pdist	broadcast
+19	25	0.1	inf	3	2	3	8	60	1	1	0	22	0	-80	-80	0
+19	25	0.2	inf	3	2	3	8	60	1	1	0	22	0	-80	-80	0
+19	25	0.3	inf	3	2	3	8	60	1	1	0	22	0	-80	-80	0
+19	25	0.4	inf	3	2	3	8	60	1	1	0	22	0	-80	-80	0
+19	25	0.5	inf	3	2	3	8	60	1	1	0	22	0	-80	-80	0
+19	25	0.6	inf	3	2	3	8	60	1	1	0	22	0	-80	-80	0

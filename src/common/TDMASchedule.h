@@ -1,5 +1,5 @@
 /*
- * Class for creating topologies of nodes
+ * Class for creating a TDMA schedule
  *
  * Author:	Florian Kauer <florian.kauer@koalo.de>
  *		Copyright 2015-2017
@@ -18,35 +18,51 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TOPOLOGY_H
-#define TOPOLOGY_H
+#ifndef TDMA_SCHEDULE_H
+#define TDMA_SCHEDULE_H
 
-#include <vector>
-#include <boost/property_tree/ptree.hpp>
 #include <string>
+#include <vector>
 
-class TopologyGenerator;
-
-class Topology {
+class TDMASchedule {
 public:
-	void write(const std::string& filename);
+	enum class Type {IDLE,RX,TX,BLOCKED};
 
-	std::pair<double,double> getNode(int i);
-
-	struct Frame {
-		double xmin, xmax, ymin, ymax;
+	class Slot {
+	public:
+		Type type = Type::IDLE;
+		int counterpart = 0;
+		int channel = 11;
 	};
 
-	Frame getFrame();
+	class Node {
+	public:
+		std::vector<Slot> slots;
+		void printSlots();
+	};
 
-	double getDistance(int n1, int n2);
+	bool isCalculated() {
+		return nodes.size() > 0;
+	}
+
+	void write(const std::string& filename);
+	void read(const std::string& filename);
+
+	std::vector<Node>& getNodes() {
+		return nodes;
+	}
+
+	unsigned int getTotalTXSlots() {
+		return totalTXSlots;
+	}
+
+	unsigned int getNodeCount() {
+		return nodes.size();
+	}
 
 private:
-	std::vector<std::pair<double,double> > nodeVector;
-
-	Frame frame;
-
-	friend TopologyGenerator;
+	unsigned int totalTXSlots;
+	std::vector<Node> nodes;
 };
 
 #endif

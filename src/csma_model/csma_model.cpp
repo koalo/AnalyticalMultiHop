@@ -2,8 +2,8 @@
  * Program for calculating the equation system of
  * the analytical model.
  *
- * Author:	Florian Meier <florian.meier@koalo.de>
- *		Copyright 2015
+ * Author:	Florian Kauer <florian.kauer@koalo.de>
+ *		Copyright 2015-2017
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -26,7 +26,7 @@
 #include <boost/format.hpp>
 
 #include <petsc.h>
-#include <petscdmcircuit.h>
+#include <petscdmnetwork.h>
 
 #include "Experiment.h"
 #include "Calculation.h"
@@ -37,7 +37,7 @@ using namespace std;
 using namespace boost::filesystem;
 using namespace boost::system;
 
-static char help[] = "Run as ./model --experiment <filename>\n";
+static char help[] = "Run as ./csma_model --experiment <filename>\n";
 
 int main(int argc, char** argv)
 {
@@ -68,12 +68,12 @@ int main(int argc, char** argv)
 	ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
 
 	/* Create an empty circuit object */
-	ierr = DMCircuitCreate(PETSC_COMM_WORLD,&circuitdm);CHKERRQ(ierr);
+	ierr = DMNetworkCreate(PETSC_COMM_WORLD,&circuitdm);CHKERRQ(ierr);
 
 	/* Register the components in the circuit */
-	ierr = DMCircuitRegisterComponent(circuitdm,"linkstruct",
+	ierr = DMNetworkRegisterComponent(circuitdm,"linkstruct",
 			sizeof(struct _p_LINKDATA),&componentkey[0]);CHKERRQ(ierr);
-	ierr = DMCircuitRegisterComponent(circuitdm,"relationstruct",
+	ierr = DMNetworkRegisterComponent(circuitdm,"relationstruct",
 			sizeof(struct _p_RELATIONDATA),&componentkey[1]);CHKERRQ(ierr);
 
 	ierr = PetscLogStageRegister("Read Data",&stage1);CHKERRQ(ierr);
@@ -85,7 +85,7 @@ int main(int argc, char** argv)
 
 		/* Read data */
 		PetscBool found;
-		ierr = PetscOptionsGetString(PETSC_NULL,"--experiment",
+		ierr = PetscOptionsGetString(PETSC_NULL,NULL,"--experiment",
 				experiment_file,PETSC_MAX_PATH_LEN-1,&found);CHKERRQ(ierr);
 
 		if(!found) {
@@ -105,6 +105,13 @@ int main(int argc, char** argv)
 		user.mb = experiment.getParameter<int>("MaxBackoffExponent");
 		user.n = experiment.getParameter<int>("MaxNumberOfRetransmissions");
 
+		int broadcast = experiment.getParameter<int>("broadcast");
+		if(broadcast && user.n != 0) {
+			std::cout << "For Broadcasts, retransmissions are not possible" << std::endl;
+			std::cout << help << std::endl;
+			return 1;
+		}
+
 		PetscScalar LinSym = 8.0*experiment.getParameter<int>("L")/4.0;
 		user.L = LinSym/20;
 		PetscScalar LackinSym = (bytesPerACK*8.0/4.0);
@@ -119,6 +126,13 @@ int main(int argc, char** argv)
 		user.Ls = (LinSym+tACK+LackinSym+IFS)/20.0;
 
 		user.handleACKs = experiment.getParameter<int>("handleACKs");
+
+		if(broadcast && user.handleACKs) {
+			std::cout << "For Broadcasts, ACKs are not possible" << std::endl;
+			std::cout << help << std::endl;
+			return 1;
+		}
+
 		user.betterRetrans = experiment.getParameter<int>("betterRetrans");
 		user.inverse = experiment.getParameter<double>("inverse");
 		PetscScalar aUnitBackoffPeriod = 20;
@@ -165,32 +179,52 @@ int main(int argc, char** argv)
   			links[i].pnoack = 0;
   			links[i].curR = 0;
 
-			if(l.up) {
-				// upstream
-				links[i].input_factor = 1;
-				links[i].arrival_factor = 0;
-			}
-			else {
-				// downstream
-				int descendantsChild = route.getDescendants(l.destination);
-				int descendantsParent = route.getDescendants(l.source);
-           			links[i].input_factor = (1+descendantsChild) /
-							((double)descendantsParent);
-           			links[i].arrival_factor = 1.0/(1.0+descendantsChild);
-			}
-
 			double BER = route.getBER(i);
 			links[i].PER = 1 - pow(1 - BER,experiment.getParameter<int>("L")*8);
 			links[i].AER = (1-pow(1 - BER,bytesPerACK*8));
 
-			if(l.up) {
-				// upstream
-				links[i].packet_generation = freqUp*user.Sb;
+			if(!broadcast) {
+				if(l.up) {
+					// upstream
+					links[i].input_factor = 1;
+					links[i].arrival_factor = 0;
+				}
+				else {
+					// downstream
+					int descendantsChild = route.getDescendants(l.destination);
+					int descendantsParent = route.getDescendants(l.source);
+					links[i].input_factor = (1+descendantsChild) /
+								((double)descendantsParent);
+					links[i].arrival_factor = 1.0/(1.0+descendantsChild);
+				}
+
+				if(l.up) {
+					// upstream
+					links[i].packet_generation = freqUp*user.Sb;
+				}
+				else if(links[i].from == 0) {
+					// downstream - only inner edges
+					links[i].packet_generation = freqDown * user.Sb *
+								links[i].input_factor*(nodes-1);
+				}
+				else {
+					links[i].packet_generation = 0;
+				}
 			}
-			else if(links[i].from == 0) {
-				// downstream - only inner edges
-				links[i].packet_generation = freqDown * user.Sb *
-							links[i].input_factor*(nodes-1);
+			else {
+				// For broadcasts, the data is equally distributed over all downstreams
+				// and does not spread!
+				links[i].input_factor = 0;
+				links[i].arrival_factor = 1;
+
+				if(l.up) {
+					links[i].packet_generation = 0;
+				}
+				else {
+					int children = route.getDirectChildren(l.source);
+					links[i].packet_generation = freqDown*user.Sb/children;
+					cout << l.source << " " << children << " " << links[i].packet_generation << endl;
+				}
 			}
 		}
 
@@ -258,14 +292,14 @@ int main(int argc, char** argv)
 		numVertices++;  // for extra variable (for inverse) 
 	}
 
-	ierr = DMCircuitSetSizes(circuitdm,numVertices,numEdges,
+	ierr = DMNetworkSetSizes(circuitdm,numVertices,numEdges,
 			PETSC_DETERMINE,PETSC_DETERMINE);CHKERRQ(ierr);
 
 	/* Add edge connectivity */
-	ierr = DMCircuitSetEdgeList(circuitdm,edges);CHKERRQ(ierr);
+	ierr = DMNetworkSetEdgeList(circuitdm,edges);CHKERRQ(ierr);
 
 	/* Set up the circuit layout */
-	ierr = DMCircuitLayoutSetUp(circuitdm);CHKERRQ(ierr);
+	ierr = DMNetworkLayoutSetUp(circuitdm);CHKERRQ(ierr);
 
 	if (!rank) {
 		ierr = PetscFree(edges);CHKERRQ(ierr);
@@ -274,27 +308,27 @@ int main(int argc, char** argv)
 	/* Add circuit components */
 	PetscInt eStart, eEnd, vStart, vEnd;
 
-	ierr = DMCircuitGetVertexRange(circuitdm,&vStart,&vEnd);CHKERRQ(ierr);
+	ierr = DMNetworkGetVertexRange(circuitdm,&vStart,&vEnd);CHKERRQ(ierr);
 	if(user.inverse) {
 		vEnd--;
 	}
 
 	for (i = vStart; i < vEnd; i++) {
-		ierr = DMCircuitAddComponent(circuitdm,i,componentkey[0],
+		ierr = DMNetworkAddComponent(circuitdm,i,componentkey[0],
 				&links[i-vStart]);CHKERRQ(ierr);
 
 		/* Add number of variables */
-		ierr = DMCircuitAddNumVariables(circuitdm,i,VAR_NVARS);CHKERRQ(ierr);
+		ierr = DMNetworkAddNumVariables(circuitdm,i,VAR_NVARS);CHKERRQ(ierr);
 	}
 
 	if(user.inverse) {
 		// extra variable for inverse
-		ierr = DMCircuitAddNumVariables(circuitdm,vEnd,1);CHKERRQ(ierr);
+		ierr = DMNetworkAddNumVariables(circuitdm,vEnd,1);CHKERRQ(ierr);
 	}
 
-	ierr = DMCircuitGetEdgeRange(circuitdm,&eStart,&eEnd);CHKERRQ(ierr);
+	ierr = DMNetworkGetEdgeRange(circuitdm,&eStart,&eEnd);CHKERRQ(ierr);
 	for (i = eStart; i < eEnd; i++) {
-		ierr = DMCircuitAddComponent(circuitdm,i,componentkey[1],
+		ierr = DMNetworkAddComponent(circuitdm,i,componentkey[1],
 				&relations[i-eStart]);CHKERRQ(ierr);
 	}
 
@@ -312,7 +346,7 @@ int main(int argc, char** argv)
 	if (size > 1) {
 		DM distcircuitdm;
 		/* Circuit partitioning and distribution of data */
-		ierr = DMCircuitDistribute(circuitdm,&distcircuitdm);CHKERRQ(ierr);
+		ierr = DMNetworkDistribute(circuitdm,0,&distcircuitdm);CHKERRQ(ierr);
 		ierr = DMDestroy(&circuitdm);CHKERRQ(ierr);
 		circuitdm = distcircuitdm;
 	}
@@ -341,10 +375,11 @@ int main(int argc, char** argv)
 
 	/* Print out result */
 	ResultWriter resultWriter;
-	resultWriter.store(X,circuitdm,&user);
+	Route& route = experiment.getRoute();
+	resultWriter.store(X,F,circuitdm,&user,route);
 
 	if(!rank) {
-		resultWriter.write(experiment.getResultFileName(experiment_file));
+		resultWriter.write(experiment.getCSMAResultFileName(experiment_file));
 	}
 
 	ierr = VecDestroy(&X);CHKERRQ(ierr);

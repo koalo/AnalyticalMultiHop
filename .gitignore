@@ -87,3 +87,5 @@ docs/_build/
 
 # PyBuilder
 target/
+
+compile_commands.json

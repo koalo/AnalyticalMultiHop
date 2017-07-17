@@ -2,8 +2,8 @@
  * Program for preprocessing an experiment set
  * to apply the analytical model or a simulation.
  *
- * Author:	Florian Meier <florian.meier@koalo.de>
- *		Copyright 2015
+ * Author:	Florian Kauer <florian.kauer@koalo.de>
+ *		Copyright 2015-2017
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -24,11 +24,14 @@
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
+#include <algorithm>
+#include <string>
 
 #include "Experiment.h"
 #include "TopologyGenerator.h"
 #include "ConnectionsGenerator.h"
 #include "RouteGenerator.h"
+#include "TDMAGenerator.h"
 
 using namespace std;
 using namespace boost::filesystem;
@@ -46,6 +49,7 @@ int main(int argc, char** argv)
 		("experiments", po::value<string>()->required(), "tab separated file with the set of experiments")
 		("output", po::value<string>()->required(), "output directory")
 		("threads", po::value<int>()->default_value(999), "maximum number of threads to use")
+		("tdma", po::value<string>()->default_value("none"), "generate TDMA schedule (one of 'none' (default), 'optTSCH', 'DSME', 'Orchestra'")
 		;
 
 	po::variables_map vm;
@@ -86,13 +90,33 @@ int main(int argc, char** argv)
 		/* Create route */
 		RouteGenerator::create(experiment, experiment.getConnections(), experiment.getRoute());
 
+		string tdma = vm["tdma"].as<string>();
+		transform(tdma.begin(), tdma.end(), tdma.begin(), ::tolower);
+		if(tdma == "tamc") {
+			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),true);
+		}
+		else if(tdma == "tasc") {
+			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),false);
+		}
+		else if(tdma == "orchestra") {
+			TDMAGenerator::createOrchestraSBD(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule());
+		}
+		else if(tdma == "none") {
+			// do nothing
+		}
+		else {
+			cerr << "Invalid TDMA command" << endl;
+			cerr << desc << endl;
+			return 1;
+		}
+
 		/* Produce output */
 		// format and create output directory
 		boost::format fmt("%03d");
 		fmt % i;
 		path experiment_directory = output_directory / fmt.str();
 
-		error_code err;
+		boost::system::error_code err;
 		create_directories(experiment_directory, err);
 		if(err) {
 			cerr << "Could not create output directory!" << endl;

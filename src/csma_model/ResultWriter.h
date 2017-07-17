@@ -1,5 +1,5 @@
 /*
- * Class for creating topologies of nodes
+ * Class for writing the results of the analytical model
  *
  * Author:	Florian Kauer <florian.kauer@koalo.de>
  *		Copyright 2015-2017
@@ -18,35 +18,26 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TOPOLOGY_H
-#define TOPOLOGY_H
+#ifndef RESULTWRITER_H
+#define RESULTWRITER_H
 
-#include <vector>
-#include <boost/property_tree/ptree.hpp>
+#include <petsc.h>
 #include <string>
+#include <boost/property_tree/ptree.hpp>
 
-class TopologyGenerator;
+#include "Calculation.h"
+#include "Route.h"
 
-class Topology {
+class ResultWriter {
 public:
+	ResultWriter();
+
+	PetscErrorCode store(Vec& X, Vec& F, DM& circuitdm, UserCtx *user, Route& route);
+
 	void write(const std::string& filename);
 
-	std::pair<double,double> getNode(int i);
-
-	struct Frame {
-		double xmin, xmax, ymin, ymax;
-	};
-
-	Frame getFrame();
-
-	double getDistance(int n1, int n2);
-
 private:
-	std::vector<std::pair<double,double> > nodeVector;
-
-	Frame frame;
-
-	friend TopologyGenerator;
+	boost::property_tree::ptree results;
 };
 
 #endif

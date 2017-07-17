@@ -1,8 +1,8 @@
 /*
  * Class representing an Experiment
  *
- * Author:	Florian Meier <florian.meier@koalo.de>
- *		Copyright 2015
+ * Author:	Florian Kauer <florian.kauer@koalo.de>
+ *		Copyright 2015-2017
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -25,6 +25,7 @@
 #include "Connections.h"
 #include "Route.h"
 #include "Relations.h"
+#include "TDMASchedule.h"
 
 #include <string>
 #include <vector>
@@ -56,12 +57,14 @@ public:
 	Connections& getConnections();
 	Route& getRoute();
 	RelationSet& getRelations();
+	TDMASchedule& getTDMASchedule();
 
 	void write(boost::filesystem::path directory, std::string experiment_file);
 
 	void read(std::string experiment_file);
 
-	std::string getResultFileName(std::string experiment_file);
+	std::string getCSMAResultFileName(std::string experiment_file);
+	std::string getTDMAResultFileName(std::string experiment_file);
 
 private:
 	void addParameter(std::string key, std::string value);
@@ -73,6 +76,7 @@ private:
 	Connections connections;
 	Route route;
 	RelationSet relations;
+	TDMASchedule tdma_schedule;
 };
 
 #endif

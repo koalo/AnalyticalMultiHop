@@ -1,8 +1,8 @@
 /*
  * Class for creating a static routing tree
  *
- * Author:	Florian Meier <florian.meier@koalo.de>
- *		Copyright 2015
+ * Author:	Florian Kauer <florian.kauer@koalo.de>
+ *		Copyright 2015-2017
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -101,6 +101,11 @@ int Route::getPredecessor(int node)
 	return predecessors[node];
 }
 
+int Route::getDirectChildren(int node)
+{
+	return count(predecessors.begin(),predecessors.end(),node);
+}
+
 /*
 void Route::setTrafficFactors(int anchor, bool up, double input, double arrival)
 {
@@ -130,6 +135,10 @@ double Route::getBER(int id)
 int Route::getDescendants(int node)
 {
 	return descendants[node];
+}
+
+int Route::getNodeCount() {
+	return nodes;
 }
 
 void Route::write(const std::string& filename)
@@ -187,8 +196,10 @@ void Route::read(const std::string& filename)
 	
 	typedef graph_traits<DotGraph>::edge_iterator edge_iter;
 	std::pair<edge_iter, edge_iter> ep;
+	auto iters = edges(dotg);
 	edge_iter ei, ei_end;
-	for (tie(ei, ei_end) = edges(dotg); ei != ei_end; ++ei) {
+	std::tie(ei, ei_end) = iters;
+	for (; ei != ei_end; ++ei) {
 		auto src = source(*ei,dotg);
 		int id_src = atoi(get(name, src).c_str());
 		auto tgt = target(*ei,dotg);

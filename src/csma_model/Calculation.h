@@ -1,8 +1,8 @@
 /*
  * Class for calculating the analytical model
  *
- * Author:	Florian Meier <florian.meier@koalo.de>
- *		Copyright 2015
+ * Author:	Florian Kauer <florian.kauer@koalo.de>
+ *		Copyright 2015-2017
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 #define CALCULATION_H
 
 #include <petsc.h>
-#include <petscdmcircuit.h>
+#include <petscdmnetwork.h>
 
 #include "Relations.h"
 
@@ -90,10 +90,11 @@ typedef struct {
 	PetscScalar packet_generation;
 } Result;
 
-PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMCircuitComponentGenericDataType *arr, const PetscScalar *xarr, UserCtx *user, Result *r, bool debug);
+PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGenericDataType *arr, const PetscScalar *xarr, UserCtx *user, Result *r, bool debug);
 PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx);
 PetscErrorCode SetInitialValues(DM circuitdm,Vec X,void *appctx);
 PetscErrorCode FormatResult(Vec& X, DM& circuitdm, UserCtx *user);
+PetscErrorCode CalculatePathReliability(DM& circuitdm, DMNetworkComponentGenericDataType *arr, const PetscScalar *xarr, const PetscScalar *farr, PetscScalar& Rx, PetscInt v, PetscInt vStart);
 
 #endif
 

@@ -1,5 +1,5 @@
 /*
- * Class for creating topologies of nodes
+ * Class for creating a TDMA schedule
  *
  * Author:	Florian Kauer <florian.kauer@koalo.de>
  *		Copyright 2015-2017
@@ -18,35 +18,22 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-#ifndef TOPOLOGY_H
-#define TOPOLOGY_H
+#ifndef TDMAGENERATOR_H
+#define TDMAGENERATOR_H
 
-#include <vector>
-#include <boost/property_tree/ptree.hpp>
-#include <string>
+#include "Experiment.h"
 
-class TopologyGenerator;
+struct NoFreeSlotException : public std::exception
+{
+};
 
-class Topology {
+class TDMAGenerator {
 public:
-	void write(const std::string& filename);
-
-	std::pair<double,double> getNode(int i);
-
-	struct Frame {
-		double xmin, xmax, ymin, ymax;
-	};
-
-	Frame getFrame();
-
-	double getDistance(int n1, int n2);
+	static void createTA(Experiment& experiment, Connections& connections, Route& route, TDMASchedule& schedule, bool multi_channel);
+	static void createOrchestraSBD(Experiment& experiment, Connections& connections, Route& route, TDMASchedule& schedule);
 
 private:
-	std::vector<std::pair<double,double> > nodeVector;
-
-	Frame frame;
-
-	friend TopologyGenerator;
+	static int requiredSlots(Route& route, int node);
 };
 
 #endif

@@ -1,8 +1,8 @@
 /*
  * Class representing an Experiment
  *
- * Author:	Florian Meier <florian.meier@koalo.de>
- *		Copyright 2015
+ * Author:	Florian Kauer <florian.kauer@koalo.de>
+ *		Copyright 2015-2017
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -32,7 +32,7 @@ using namespace boost::system;
 
 void Experiment::createFromSetFile(string filename, vector<Experiment>& experiments)
 {
-	ifstream paramsFile(filename);
+	std::ifstream paramsFile(filename);
 
 	if(!paramsFile.is_open()) {
      		cerr << "Could not open parameters file" << endl;
@@ -109,6 +109,11 @@ RelationSet& Experiment::getRelations()
 	return relations;
 }
 
+TDMASchedule& Experiment::getTDMASchedule()
+{
+	return tdma_schedule;
+}
+
 void Experiment::write(path directory, std::string experiment_file)
 {
 	// write topology file
@@ -120,6 +125,13 @@ void Experiment::write(path directory, std::string experiment_file)
 	string route_file = "route.dot";
 	route.write((directory / route_file).string());
 	addIntermediate("route_file",route_file);
+
+	// write schedule file
+	if(tdma_schedule.isCalculated()) {
+		string schedule_file = "schedule.json";
+		tdma_schedule.write((directory / schedule_file).string());
+		addIntermediate("schedule_file",schedule_file);
+	}
 
 	// write experiment file
 	boost::property_tree::ptree all;
@@ -143,6 +155,14 @@ void Experiment::read(std::string experiment_file)
 
 	// read route file
 	route.read((dir / getIntermediate<string>("route_file")).string());
+
+	// read schedule file
+	if(intermediates.count("schedule_file") > 0) {
+		auto schedule_file = (dir / getIntermediate<string>("schedule_file")).string();
+		if(exists(schedule_file)) {
+			tdma_schedule.read(schedule_file);
+		}
+	}
 }
 
 template<>
@@ -156,11 +176,18 @@ double Experiment::getParameter<double>(const std::string& key) const {
 	}
 }
 
-std::string Experiment::getResultFileName(std::string experiment_file) {
+std::string Experiment::getCSMAResultFileName(std::string experiment_file) {
 	// get path relative to experiment file
 	boost::filesystem::path f(experiment_file);
 	boost::filesystem::path dir = f.parent_path();
 
-	return (dir / "result.json").string();
+	return (dir / "result_csma.json").string();
 }
 
+std::string Experiment::getTDMAResultFileName(std::string experiment_file) {
+	// get path relative to experiment file
+	boost::filesystem::path f(experiment_file);
+	boost::filesystem::path dir = f.parent_path();
+
+	return (dir / "result_tdma.json").string();
+}

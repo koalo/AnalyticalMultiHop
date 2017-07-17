@@ -1,8 +1,8 @@
 /*
  * Class for creating topologies of nodes
  *
- * Author:	Florian Meier <florian.meier@koalo.de>
- *		Copyright 2015
+ * Author:	Florian Kauer <florian.kauer@koalo.de>
+ *		Copyright 2015-2017
  * 
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU General Public License as published by
@@ -20,6 +20,7 @@
 
 #include "TopologyGenerator.h"
 #include "Experiment.h"
+#include <iostream>
 
 #include <boost/property_tree/json_parser.hpp>
 
@@ -45,9 +46,6 @@ void TopologyGenerator::create(Experiment& experiment, Topology& topology)
 	while(nodes > 0) {
 		r += mdia;
 
-		// for debugging
-		// cerr << "On " << circles << " circles: " << nodeVector.size() << " mirrors" << endl;
-
 		double perimeter = 2*M_PI*r;
 		int nodesOnPerimeter = perimeter/mdia;
 
@@ -68,11 +66,14 @@ void TopologyGenerator::create(Experiment& experiment, Topology& topology)
 			if(y > topology.frame.ymax) topology.frame.ymax = y;
 			topology.nodeVector.push_back(make_pair(x,y));
 			if(lastCircle) {
-				experiment.addIntermediate("nodesOnOuterCircle", n);
+				experiment.addIntermediate("nodesOnOuterCircle", nodesOnPerimeter);
 			}
 		}
 
 		circles++;
+
+		// for debugging
+		cerr << "On " << circles << " circles: " << topology.nodeVector.size() << " mirrors" << endl;
 	}
 }
 
