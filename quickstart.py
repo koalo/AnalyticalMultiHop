@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 
 import networkx as nx
+import numpy as np
 import os
 import sys
 sys.path.insert(0,os.path.dirname(__file__)+'/python')
@@ -31,5 +32,20 @@ experiment.set_routing(R,SINK)
 # Draw graph and routing tree
 experiment.draw()
 
-# Write experiment files
-experiment.write(RESULT_DIRECTORY)
+# Iterate over rate
+for rate in np.arange(1,2,0.5):
+    experiment.intervalUp = rate
+
+    directory = os.path.join(RESULT_DIRECTORY,str(rate))
+
+    # Write experiment files
+    experiment.write(directory)
+
+    # Execute the experiment
+    result = am.execute(directory, mac='csma')
+
+    # Analyze the result for the node with the highest address
+    result = result[max(result.keys())]
+    result['rate'] = rate
+
+    print(result)

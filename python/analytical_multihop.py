@@ -3,12 +3,40 @@ import pygraphviz
 import networkx as nx
 import os
 import json
+import subprocess
 from networkx.drawing.nx_agraph import write_dot
 
 EXPERIMENT_FILENAME = 'experiment.json'
 ROUTE_FILENAME = 'route.dot'
+RESULT_FILENAME = {'csma': 'result_csma.json', 'tdma': 'result_tdma.json'}
+
+def execute(result_directory, mac='csma'):
+    if mac not in ['csma','tdma']:
+        raise ValueError("Only csma and tdma allowed for the mac parameter")
+
+    subprocess.call(['./'+mac+'_model', '--experiment', os.path.join(result_directory,EXPERIMENT_FILENAME)])
+
+    with open(os.path.join(result_directory,RESULT_FILENAME[mac])) as data_file:
+            result = json.load(data_file)
+
+    if mac == 'csma':
+        nodes = len(result)//2+1
+    else:
+        raise NotImplementedError("TDMA not yet implemented")
+
+    filtered = {}
+    for n in range(1,nodes):
+        r = result[str(n)]
+        filtered[n] = {}
+        filtered[n]['Rtotal'] = r['Rtotal']
+        filtered[n]['Dtotal'] = r['Dtotal']
+
+    return filtered
 
 class Experiment: 
+    def __init__(self):
+        self.intervalUp = 0.6
+
     def set_graph(self,G):
         self.G = G
 
@@ -42,7 +70,7 @@ class Experiment:
             "parameters": {
                 "nodes": nx.number_of_nodes(self.G),
                 "distance": "25",
-                "intervalUp": "0.6666666666666666",
+                "intervalUp": self.intervalUp,
                 "intervalDown": "inf",
                 "MaxNumberOfBackoffs": "3",
                 "MaxNumberOfRetransmissions": "2",
