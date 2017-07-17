@@ -106,25 +106,6 @@ int Route::getDirectChildren(int node)
 	return count(predecessors.begin(),predecessors.end(),node);
 }
 
-/*
-void Route::setTrafficFactors(int anchor, bool up, double input, double arrival)
-{
-	Link l = getLinkByAnchor(anchor, up);
-	linkInput[l.id] = input;
-	linkArrival[l.id] = arrival;
-}
-
-double Route::getInputFactor(int id)
-{
-	return linkInput[id];
-}
-
-double Route::getArrivalFactor(int id)
-{
-	return linkArrival[id];
-}
-*/
-
 double Route::getBER(int id)
 {
 	//return linkBER[id];
