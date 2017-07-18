@@ -8,34 +8,36 @@ from networkx.drawing.nx_agraph import write_dot
 
 EXPERIMENT_FILENAME = 'experiment.json'
 ROUTE_FILENAME = 'route.dot'
-RESULT_FILENAME = {'csma': 'result_csma.json', 'tdma': 'result_tdma.json'}
+RESULT_FILENAME = {'CSMA': 'result_csma.json', 'TDMA': 'result_tdma.json'}
+SCHEDULE_FILENAME = 'schedule.json'
 
-def execute(result_directory, mac='csma'):
-    if mac not in ['csma','tdma']:
+def execute(result_directory, mac='CSMA'):
+    if mac not in ['CSMA','TDMA']:
         raise ValueError("Only csma and tdma allowed for the mac parameter")
 
-    subprocess.call(['./'+mac+'_model', '--experiment', os.path.join(result_directory,EXPERIMENT_FILENAME)])
+    subprocess.call(['./'+mac.lower()+'_model', '--experiment', os.path.join(result_directory,EXPERIMENT_FILENAME)])
 
     with open(os.path.join(result_directory,RESULT_FILENAME[mac])) as data_file:
             result = json.load(data_file)
 
-    if mac == 'csma':
-        nodes = len(result)//2+1
+    if mac == 'CSMA':
+        nodes = len(result)//2+1 # result is given as links!
     else:
-        raise NotImplementedError("TDMA not yet implemented")
+        nodes = len(result)
 
     filtered = {}
     for n in range(1,nodes):
         r = result[str(n)]
         filtered[n] = {}
-        filtered[n]['Rtotal'] = r['Rtotal']
-        filtered[n]['Dtotal'] = r['Dtotal']
+        filtered[n]['Rtotal'] = float(r['Rtotal'])
+        filtered[n]['Dtotal'] = float(r['Dtotal'])
 
     return filtered
 
 class Experiment: 
     def __init__(self):
         self.intervalUp = 0.6
+        self.schedule_length = 0
 
     def set_graph(self,G):
         self.G = G
@@ -44,21 +46,48 @@ class Experiment:
         self.R = R
         self.sink = sink
 
-        # Assign addresses
-        self.addresses_for_label = {sink:0}
-        self.label_for_address = {0:sink}
+        # Assign indicies
+        self.index_for_label = {sink:0}
+        self.label_for_index = {0:sink}
         i = 1
         r = nx.reverse(self.R)
         for e in nx.bfs_edges(r,sink):
-            if e[1] not in self.addresses_for_label:
-                self.addresses_for_label[e[1]] = i
-                self.label_for_address[i] = e[1]
+            if e[1] not in self.index_for_label:
+                self.index_for_label[e[1]] = i
+                self.label_for_index[i] = e[1]
                 i += 1
 
     def draw(self):
         nx.draw(self.G,nx.get_node_attributes(self.G,'pos'),edge_color='gray')
-        nx.draw(self.R,nx.get_node_attributes(self.G,'pos'),width=4,node_size=2000,labels=self.addresses_for_label)
+        nx.draw(self.R,nx.get_node_attributes(self.G,'pos'),width=4,node_size=2000,labels=self.index_for_label)
         plt.show()
+
+    def initialize_schedule(self,schedule_length):
+        self.schedule_length = schedule_length
+
+        self.schedule = {"nodes":[]}
+        for n in self.G.node:
+            slots = []
+            for i in range(0,schedule_length):
+                slots.append({"type": "IDLE",
+                              "counterpart": "0",
+                              "channel": "0"})
+            self.schedule["nodes"].append({"slots":slots})
+
+    def get_index(self,node):
+        return self.index_for_label[node]
+
+    def get_node_from_index(self,node_index):
+        return self.label_for_index[node_index]
+
+    def get_parent(self,node):
+        return self.R.successors(node)[0]
+
+    def add_slot(self,node,slot_id,slot_type,counterpart,channel=0):
+        s = self.schedule["nodes"][self.index_for_label[node]]["slots"][slot_id]
+        s["type"] = slot_type
+        s["counterpart"] = self.index_for_label[counterpart]
+        s["channel"] = channel
 
     def write(self, result_directory):
         if not os.path.exists(result_directory):
@@ -115,9 +144,15 @@ class Experiment:
         r = nx.reverse(self.R)
         for n,pred in nx.dfs_predecessors(r,self.sink).items():
             pdesc = len(nx.descendants(r,n))
-            DG.node[n]['label'] = str(self.addresses_for_label[pred])+" "+str(pdesc)+" 0"
+            DG.node[n]['label'] = str(self.index_for_label[pred])+" "+str(pdesc)+" 0"
 
-        # Set addresses
-        DG = nx.relabel_nodes(DG, self.addresses_for_label)
+        # Set indicies
+        DG = nx.relabel_nodes(DG, self.index_for_label)
 
         write_dot(DG,os.path.join(result_directory,ROUTE_FILENAME))
+
+        ########################
+        # Write schedule file
+        if self.schedule_length > 0:
+            with open(os.path.join(result_directory,SCHEDULE_FILENAME), 'w') as outfile:
+                json.dump(self.schedule, outfile, indent=4)
