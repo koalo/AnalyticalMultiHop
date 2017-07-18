@@ -6,7 +6,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import os
 import sys
-sys.path.insert(0,os.path.dirname(__file__)+'/python')
+sys.path.insert(0,os.path.join(os.path.dirname(__file__),'python'))
 import analytical_multihop as am
 
 RESULT_DIRECTORY = "results"
@@ -33,7 +33,7 @@ for (k,v) in possible_predecessors.items():
 experiment.set_routing(R,SINK)
 
 # Draw graph and routing tree
-experiment.draw()
+experiment.draw(block=False)
 
 # Generate TDMA schedule
 experiment.initialize_schedule(schedule_length = nx.number_of_nodes(G)-1)

@@ -57,10 +57,10 @@ class Experiment:
                 self.label_for_index[i] = e[1]
                 i += 1
 
-    def draw(self):
+    def draw(self,block=True):
         nx.draw(self.G,nx.get_node_attributes(self.G,'pos'),edge_color='gray')
         nx.draw(self.R,nx.get_node_attributes(self.G,'pos'),width=4,node_size=2000,labels=self.index_for_label)
-        plt.show()
+        plt.show(block=block)
 
     def initialize_schedule(self,schedule_length):
         self.schedule_length = schedule_length
