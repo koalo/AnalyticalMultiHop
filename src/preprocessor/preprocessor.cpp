@@ -93,10 +93,16 @@ int main(int argc, char** argv)
 		string mac = vm["mac"].as<string>();
 		transform(mac.begin(), mac.end(), mac.begin(), ::toupper);
 		if(mac == "TAMC_TSCH") {
-			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),true);
+			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),true,true);
+		}
+		else if(mac == "TAMC_DSME") {
+			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),true,false);
+		}
+		else if(mac == "TAMC_DSME_CAPRED") {
+			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),true,false,true);
 		}
 		else if(mac == "TASC_TSCH") {
-			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),false);
+			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),false,true);
 		}
 		else if(mac == "ORCHESTRA") {
 			TDMAGenerator::createOrchestraSBD(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule());

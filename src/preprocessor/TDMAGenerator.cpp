@@ -100,6 +100,7 @@ public:
 	Route* route;
 	std::pair<Route::Graph::adjacency_iterator, Route::Graph::adjacency_iterator> adjacentVertices;
 	int maxslots;
+	int startslot;
 };
 
 class TAMCNode : public TASCNode {
@@ -110,8 +111,7 @@ public:
 			markChildVisited();
 
 			int s = route->getDescendants(v) + 1;
-			// avoid first slot
-			for(int slot = 1; slot < maxslots; slot++) {
+			for(int slot = startslot; slot < maxslots; slot++) {
 				if(schedule->getNodes()[id].slots[slot].type == TDMASchedule::Type::IDLE) {
 
 					// choose channel
@@ -164,9 +164,14 @@ public:
 	vector<set<int>> B;
 };
 
-void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, Route& route, TDMASchedule& schedule, bool multi_channel)
+void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, Route& route, TDMASchedule& schedule, bool multi_channel, bool tsch, bool cap_reduction)
 {
-	experiment.addIntermediate("slotDuration_us",slotDurationTSCH);
+	if(tsch) {
+		experiment.addIntermediate("slotDuration_us",slotDurationTSCH);
+	}
+	else {
+		experiment.addIntermediate("slotDuration_us",slotDurationDSME);
+	}
 
 	// Calculate maximum number of slots needed
 	int maxslots = 0;
@@ -182,7 +187,12 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 		}
 	}
 
-	maxslots += 1; // avoid first slot (for CSMA transmission)
+	int startslot = 0;
+	if(tsch) {
+		// avoid first slot (-> 6top)
+		maxslots += 1;
+		startslot = 1;
+	}
 
 	// Generate empty schedule
 	schedule.getNodes().resize(route.getNodeCount());
@@ -206,13 +216,14 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 		node->adjacentVertices = route.getAdjacentVertices(n);
 		node->route = &route;
 		node->maxslots = maxslots;
+		node->startslot = startslot;
 		if(dynamic_cast<TAMCNode*>(node)) {
 			dynamic_cast<TAMCNode*>(node)->B.resize(maxslots);
 		}
 		tanodes.push_back(node);
 	}
 
-	tanodes.at(0)->forward(1); // avoid first slot (0)
+	tanodes.at(0)->forward(startslot);
 
 	for(auto node : tanodes) {
 		delete node;
@@ -220,6 +231,39 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 	
 
 	cout << "----------------" << endl;
+
+
+	if(!tsch) {
+		// Add Beacon and CAP and fill to full superframes
+		for(int n = 0; n < route.getNodeCount(); n++) {
+			auto& slots = schedule.getNodes()[n].slots;
+			int musus = 0;
+			if(!cap_reduction) {
+				musus = ceil(maxslots/7.0);
+			}
+			else {
+				// 8 more slots per superframe,
+				// but we have to add the 8 CAP slots
+				// at the beginning
+				musus = ceil((maxslots+8)/(8.0+7.0));
+			}
+			// only powers of two are allowed (2**ceil(log2(x)))
+			musus = pow(2,ceil(log2(musus)));
+			
+			for(int musu = 0; musu < musus; musu++) {
+				auto it = slots.begin()+musu*16;
+				int additionalSlots = 1; // Beacon
+				if(musu == 0 || !cap_reduction) {
+					additionalSlots += 8; // CAP
+				}
+				slots.insert(it,additionalSlots,TDMASchedule::Slot());
+			}
+
+			slots.resize(musus*16);
+
+			schedule.getNodes()[n].printSlots();
+		}
+	}
 }
 
 void TDMAGenerator::createOrchestraSBD(Experiment& experiment, Connections& connections, Route& route, TDMASchedule& schedule)
