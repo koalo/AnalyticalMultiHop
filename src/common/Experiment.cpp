@@ -25,6 +25,7 @@
 #include <sstream>
 
 #include <boost/property_tree/json_parser.hpp>
+#include <boost/format.hpp>
 
 using namespace std;
 using namespace boost::filesystem;
@@ -114,7 +115,7 @@ TDMASchedule& Experiment::getTDMASchedule()
 	return tdma_schedule;
 }
 
-void Experiment::write(path directory, std::string experiment_file)
+void Experiment::write(path directory, std::string mac)
 {
 	// write topology file
 	string topology_file = "topology.json";
@@ -128,17 +129,24 @@ void Experiment::write(path directory, std::string experiment_file)
 
 	// write schedule file
 	if(tdma_schedule.isCalculated()) {
-		string schedule_file = "schedule.json";
-		tdma_schedule.write((directory / schedule_file).string());
-		addIntermediate("schedule_file",schedule_file);
+		boost::format schedule_file("schedule_%s.json");
+		schedule_file % mac;
+		tdma_schedule.write((directory / schedule_file.str()).string());
+		addIntermediate("schedule_file",schedule_file.str());
 	}
+
+	boost::format result_file("result_%s.json");
+	result_file % mac;
+	addIntermediate("result_file",result_file.str());
 
 	// write experiment file
 	boost::property_tree::ptree all;
 	all.add_child("parameters", parameters);
 	all.add_child("intermediates", intermediates);
 
-	boost::property_tree::json_parser::write_json((directory / experiment_file).string(), all);
+	boost::format experiment_file("experiment_%s.json");
+	experiment_file % mac;
+	boost::property_tree::json_parser::write_json((directory / experiment_file.str()).string(), all);
 }
 
 void Experiment::read(std::string experiment_file)
@@ -176,18 +184,11 @@ double Experiment::getParameter<double>(const std::string& key) const {
 	}
 }
 
-std::string Experiment::getCSMAResultFileName(std::string experiment_file) {
+std::string Experiment::getResultFileName(std::string experiment_file) {
 	// get path relative to experiment file
 	boost::filesystem::path f(experiment_file);
 	boost::filesystem::path dir = f.parent_path();
 
-	return (dir / "result_csma.json").string();
+	return (dir / getIntermediate<string>("result_file")).string();
 }
 
-std::string Experiment::getTDMAResultFileName(std::string experiment_file) {
-	// get path relative to experiment file
-	boost::filesystem::path f(experiment_file);
-	boost::filesystem::path dir = f.parent_path();
-
-	return (dir / "result_tdma.json").string();
-}

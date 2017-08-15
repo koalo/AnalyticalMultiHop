@@ -55,7 +55,8 @@ for rate in np.arange(0.4,1.2,0.05):
     directory = os.path.join(RESULT_DIRECTORY,str(rate))
 
     # Write experiment files
-    experiment.write(directory)
+    experiment.write(directory, "CSMA")
+    experiment.write(directory, "TDMA")
 
     # Execute the experiment
     for mac in ['CSMA','TDMA']:

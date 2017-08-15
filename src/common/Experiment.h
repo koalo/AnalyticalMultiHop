@@ -63,8 +63,7 @@ public:
 
 	void read(std::string experiment_file);
 
-	std::string getCSMAResultFileName(std::string experiment_file);
-	std::string getTDMAResultFileName(std::string experiment_file);
+	std::string getResultFileName(std::string experiment_file);
 
 private:
 	void addParameter(std::string key, std::string value);

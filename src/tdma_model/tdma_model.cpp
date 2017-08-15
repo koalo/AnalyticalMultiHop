@@ -271,7 +271,7 @@ int main(int argc, char** argv)
 	resultWriter.store(X,circuitdm,&user,schedule,experiment);
 
 	if(!rank) {
-		resultWriter.write(experiment.getTDMAResultFileName(experiment_file));
+		resultWriter.write(experiment.getResultFileName(experiment_file));
 	}
 
 	ierr = VecDestroy(&X);CHKERRQ(ierr);

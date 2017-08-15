@@ -6,18 +6,18 @@ import json
 import subprocess
 from networkx.drawing.nx_agraph import write_dot
 
-EXPERIMENT_FILENAME = 'experiment.json'
+EXPERIMENT_FILENAME = 'experiment_%s.json'
 ROUTE_FILENAME = 'route.dot'
-RESULT_FILENAME = {'CSMA': 'result_csma.json', 'TDMA': 'result_tdma.json'}
-SCHEDULE_FILENAME = 'schedule.json'
+RESULT_FILENAME = "result_%s.json"
+SCHEDULE_FILENAME = 'schedule_%s.json'
 
 def execute(result_directory, mac='CSMA'):
     if mac not in ['CSMA','TDMA']:
         raise ValueError("Only csma and tdma allowed for the mac parameter")
 
-    subprocess.call(['./'+mac.lower()+'_model', '--experiment', os.path.join(result_directory,EXPERIMENT_FILENAME)])
+    subprocess.call(['./'+mac.lower()+'_model', '--experiment', os.path.join(result_directory,EXPERIMENT_FILENAME%mac)])
 
-    with open(os.path.join(result_directory,RESULT_FILENAME[mac])) as data_file:
+    with open(os.path.join(result_directory,RESULT_FILENAME%mac)) as data_file:
             result = json.load(data_file)
 
     if mac == 'CSMA':
@@ -89,7 +89,7 @@ class Experiment:
         s["counterpart"] = self.index_for_label[counterpart]
         s["channel"] = channel
 
-    def write(self, result_directory):
+    def write(self, result_directory, mac):
         if not os.path.exists(result_directory):
             os.makedirs(result_directory)
 
@@ -120,11 +120,14 @@ class Experiment:
                 "slotDuration_us": "10000",
                 "topology_file": "topology.json",
                 "route_file": ROUTE_FILENAME,
-                "schedule_file": "schedule.json"
+                "result_file": RESULT_FILENAME%mac
             }
         }
 
-        with open(os.path.join(result_directory,EXPERIMENT_FILENAME), 'w') as outfile:
+        if mac != "CSMA":
+            experiment["intermediates"]["schedule_file"] = SCHEDULE_FILENAME%mac
+
+        with open(os.path.join(result_directory,EXPERIMENT_FILENAME%mac), 'w') as outfile:
             json.dump(experiment, outfile, indent=4)
 
         ########################
@@ -153,6 +156,7 @@ class Experiment:
 
         ########################
         # Write schedule file
-        if self.schedule_length > 0:
-            with open(os.path.join(result_directory,SCHEDULE_FILENAME), 'w') as outfile:
+        if mac != "CSMA":
+            assert(self.schedule_length > 0)
+            with open(os.path.join(result_directory,SCHEDULE_FILENAME%mac), 'w') as outfile:
                 json.dump(self.schedule, outfile, indent=4)

@@ -379,7 +379,7 @@ int main(int argc, char** argv)
 	resultWriter.store(X,F,circuitdm,&user,route);
 
 	if(!rank) {
-		resultWriter.write(experiment.getCSMAResultFileName(experiment_file));
+		resultWriter.write(experiment.getResultFileName(experiment_file));
 	}
 
 	ierr = VecDestroy(&X);CHKERRQ(ierr);

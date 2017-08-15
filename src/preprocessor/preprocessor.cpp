@@ -49,7 +49,7 @@ int main(int argc, char** argv)
 		("experiments", po::value<string>()->required(), "tab separated file with the set of experiments")
 		("output", po::value<string>()->required(), "output directory")
 		("threads", po::value<int>()->default_value(999), "maximum number of threads to use")
-		("tdma", po::value<string>()->default_value("none"), "generate TDMA schedule (one of 'none' (default), 'optTSCH', 'DSME', 'Orchestra'")
+		("mac", po::value<string>()->default_value("CSMA"), "TDMA schedule to generate (CSMA for none)")
 		;
 
 	po::variables_map vm;
@@ -90,22 +90,22 @@ int main(int argc, char** argv)
 		/* Create route */
 		RouteGenerator::create(experiment, experiment.getConnections(), experiment.getRoute());
 
-		string tdma = vm["tdma"].as<string>();
-		transform(tdma.begin(), tdma.end(), tdma.begin(), ::tolower);
-		if(tdma == "tamc") {
+		string mac = vm["mac"].as<string>();
+		transform(mac.begin(), mac.end(), mac.begin(), ::toupper);
+		if(mac == "TAMC_TSCH") {
 			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),true);
 		}
-		else if(tdma == "tasc") {
+		else if(mac == "TASC_TSCH") {
 			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),false);
 		}
-		else if(tdma == "orchestra") {
+		else if(mac == "ORCHESTRA") {
 			TDMAGenerator::createOrchestraSBD(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule());
 		}
-		else if(tdma == "none") {
+		else if(mac == "CSMA") {
 			// do nothing
 		}
 		else {
-			cerr << "Invalid TDMA command" << endl;
+			cerr << "Invalid mac parameter" << endl;
 			cerr << desc << endl;
 			return 1;
 		}
@@ -125,7 +125,7 @@ int main(int argc, char** argv)
 		}
 
 		// print experiment data
-		experiment.write(experiment_directory, "experiment.json");
+		experiment.write(experiment_directory, vm["mac"].as<string>());
 	}
 }
 
