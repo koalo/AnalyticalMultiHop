@@ -22,6 +22,9 @@
 #include "Experiment.h"
 #include <iostream>
 
+#include <algorithm>
+#include <random>
+
 using namespace boost;
 using namespace std;
 
@@ -314,6 +317,22 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 	
 
 	cout << "----------------" << endl;
+
+#if 1
+	// Shuffle
+	for(int n = 0; n < route.getNodeCount(); n++) {
+		auto& slots = schedule.getNodes()[n].slots;
+		auto from = slots.begin();
+
+		if(tsch) {
+			++from;
+		}
+
+		auto to = slots.end();
+
+		shuffle(from,to,default_random_engine{});
+	}
+#endif
 
 
 	if(!tsch) {
