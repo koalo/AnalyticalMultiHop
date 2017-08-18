@@ -49,6 +49,8 @@ void TDMASchedule::write(const string& filename)
 			case Type::BLOCKED:
 				item.put("type","BLOCKED");
 				break;
+			default:
+				assert(false);
 			}
 			item.put("counterpart",slot.counterpart);
 			item.put("channel",slot.channel);

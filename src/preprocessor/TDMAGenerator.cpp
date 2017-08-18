@@ -333,15 +333,19 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 			// only powers of two are allowed (2**ceil(log2(x)))
 			musus = pow(2,ceil(log2(musus)));
 			
+			// Shift already existing slots
 			for(int musu = 0; musu < musus; musu++) {
-				auto it = slots.begin()+musu*16;
-				int additionalSlots = 1; // Beacon
-				if(musu == 0 || !cap_reduction) {
-					additionalSlots += 8; // CAP
+				if(slots.size() > musu*16) {
+					auto it = next(slots.begin(),musu*16);
+					int additionalSlots = 1; // Beacon
+					if(musu == 0 || !cap_reduction) {
+						additionalSlots += 8; // CAP
+					}
+					slots.insert(it,additionalSlots,TDMASchedule::Slot());
 				}
-				slots.insert(it,additionalSlots,TDMASchedule::Slot());
 			}
 
+			// Fill to full size
 			slots.resize(musus*16);
 
 			schedule.getNodes()[n].printSlots();
