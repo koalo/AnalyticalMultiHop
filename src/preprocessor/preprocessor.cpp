@@ -26,6 +26,7 @@
 #include <boost/format.hpp>
 #include <algorithm>
 #include <string>
+#include <regex>
 
 #include "Experiment.h"
 #include "TopologyGenerator.h"
@@ -91,16 +92,21 @@ int main(int argc, char** argv)
 		RouteGenerator::create(experiment, experiment.getConnections(), experiment.getRoute());
 
 		string mac = vm["mac"].as<string>();
+
+		regex dsmeRgx("TAMC_DSME_SO_(.*)_MO_(.*)_CAPRED_(.*)");
+		smatch dsmeMatches;
+
 		int lSTarget = experiment.getParameter<int>("lSTarget");
 		transform(mac.begin(), mac.end(), mac.begin(), ::toupper);
 		if(mac == "TAMC_TSCH") {
 			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),lSTarget,true,true);
 		}
-		else if(mac == "TAMC_DSME") {
-			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),lSTarget,true,false);
-		}
-		else if(mac == "TAMC_DSME_CAPRED") {
-			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),lSTarget,true,false,true);
+		else if(regex_search(mac,dsmeMatches,dsmeRgx)) {
+			int SO = atoi(dsmeMatches[1].str().c_str());
+			int MO = atoi(dsmeMatches[2].str().c_str());
+			int CAPRED = atoi(dsmeMatches[3].str().c_str());
+			cout << "SO " << SO << " MO " << MO << " CAPRED " << CAPRED << endl;
+			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),lSTarget,true,false,CAPRED,SO,MO);
 		}
 		else if(mac == "TASC_TSCH") {
 			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),lSTarget,false,true);

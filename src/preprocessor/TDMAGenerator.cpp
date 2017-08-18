@@ -28,7 +28,10 @@
 using namespace boost;
 using namespace std;
 
-static const int slotDurationDSME = 480*16; // microseconds / slot -> DSME
+static const int aBaseSlotDuration = 60; // symbols
+static const int symbolDuration = 16; // us
+static const int aNumSuperframeSlots = 16; // slots
+
 static const int slotDurationTSCH = 10000; // microseconds / slot -> TSCH (10 ms)
 
 int TDMAGenerator::requiredSlots(Route& route, int node) {
@@ -178,12 +181,13 @@ public:
 	vector<set<int>> B;
 };
 
-void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, Route& route, TDMASchedule& schedule, int lSTarget, bool multi_channel, bool tsch, bool cap_reduction)
+void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, Route& route, TDMASchedule& schedule, int lSTarget, bool multi_channel, bool tsch, bool cap_reduction, int SO, int MO)
 {
 	if(tsch) {
 		experiment.addIntermediate("slotDuration_us",slotDurationTSCH);
 	}
 	else {
+		int slotDurationDSME = (symbolDuration*aBaseSlotDuration)*(1<<SO);
 		experiment.addIntermediate("slotDuration_us",slotDurationDSME);
 	}
 
@@ -340,17 +344,23 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 		for(int n = 0; n < route.getNodeCount(); n++) {
 			auto& slots = schedule.getNodes()[n].slots;
 			int musus = 0;
-			if(!cap_reduction) {
-				musus = ceil(maxslots/7.0);
+			if(MO < 0) {
+				if(!cap_reduction) {
+					musus = ceil(maxslots/7.0);
+				}
+				else {
+					// 8 more slots per superframe,
+					// but we have to add the 8 CAP slots
+					// at the beginning
+					musus = ceil((maxslots+8)/(8.0+7.0));
+				}
+				// only powers of two are allowed (2**ceil(log2(x)))
+				musus = pow(2,ceil(log2(musus)));
 			}
 			else {
-				// 8 more slots per superframe,
-				// but we have to add the 8 CAP slots
-				// at the beginning
-				musus = ceil((maxslots+8)/(8.0+7.0));
+				assert(MO >= SO);
+				musus = pow(2,MO-SO);
 			}
-			// only powers of two are allowed (2**ceil(log2(x)))
-			musus = pow(2,ceil(log2(musus)));
 			
 			// Shift already existing slots
 			for(int musu = 0; musu < musus; musu++) {
@@ -365,6 +375,7 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 			}
 
 			// Fill to full size
+			assert(slots.size() <= musus*16);
 			slots.resize(musus*16);
 
 			schedule.getNodes()[n].printSlots();
