@@ -101,6 +101,8 @@ public:
 	std::pair<Route::Graph::adjacency_iterator, Route::Graph::adjacency_iterator> adjacentVertices;
 	int maxslots;
 	int startslot;
+	//double slotCorrection;
+	std::map<int,int> slotsForNode;
 };
 
 class TAMCNode : public TASCNode {
@@ -110,7 +112,11 @@ public:
 		if(v != -1) {
 			markChildVisited();
 
-			int s = route->getDescendants(v) + 1;
+			int s = slotsForNode[v];
+			//int s = route->getDescendants(v) + 1;
+			//int s = round((route->getDescendants(v) + 1)*slotCorrection);
+			//s = max(1,s);
+			assert(s >= 1);
 			for(int slot = startslot; slot < maxslots; slot++) {
 				if(schedule->getNodes()[id].slots[slot].type == TDMASchedule::Type::IDLE) {
 
@@ -134,8 +140,13 @@ public:
 					}
 				}
 			}
+
 			auto& node = schedule->getNodes()[id];
 			node.printSlots();
+
+			cout << "slotsLeft " << s << endl;
+
+			assert(s == 0);
 
 			nodes->at(v)->forward(nextSlot);
 		}
@@ -164,7 +175,7 @@ public:
 	vector<set<int>> B;
 };
 
-void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, Route& route, TDMASchedule& schedule, bool multi_channel, bool tsch, bool cap_reduction)
+void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, Route& route, TDMASchedule& schedule, int lSTarget, bool multi_channel, bool tsch, bool cap_reduction)
 {
 	if(tsch) {
 		experiment.addIntermediate("slotDuration_us",slotDurationTSCH);
@@ -187,6 +198,13 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 		}
 	}
 
+	double slotCorrection = 1;
+	if(lSTarget > 0) {
+		slotCorrection = lSTarget/(double)maxslots;
+		cout << "slotCorrection " << slotCorrection << " " << lSTarget << " " << maxslots << endl;
+		maxslots = lSTarget;
+	}
+
 	int startslot = 0;
 	if(tsch) {
 		// avoid first slot (-> 6top)
@@ -200,6 +218,11 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 		node.slots.resize(maxslots);
 	}
 
+	// initialize divisors for lSTarget > 0 calculation
+	std::vector<int> divisor;
+	divisor.resize(route.getNodeCount());
+
+	// initialize nodes
 	std::vector<TASCNode*> tanodes;
 	for(int n = 0; n < route.getNodeCount(); n++) {
 		TASCNode* node;
@@ -213,10 +236,70 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 		node->parent = route.getPredecessor(n);
 		node->nodes = &tanodes;
 		node->schedule = &schedule;
-		node->adjacentVertices = route.getAdjacentVertices(n);
 		node->route = &route;
 		node->maxslots = maxslots;
 		node->startslot = startslot;
+
+		// Calculate slots for node
+		if(lSTarget <= 0) {
+			node->adjacentVertices = route.getAdjacentVertices(n);
+			for(int child = node->nextChild(); child != -1; node->markChildVisited(), child = node->nextChild()) {
+				node->slotsForNode[child] = route.getDescendants(child) + 1;
+			}
+		}
+		else {
+			//int slotsAvailable = floor(slotCorrection*route.getDescendants(n)); // floor, otherwise it is not guaranteed that downstream nodes find a free slot
+			int slotsAvailable = ceil(slotCorrection*route.getDescendants(n)); // floor, otherwise it is not guaranteed that downstream nodes find a free slot
+
+			cout << "Slots Available " << slotsAvailable << " " << slotCorrection*route.getDescendants(n) << " " << slotCorrection << endl;
+
+			node->adjacentVertices = route.getAdjacentVertices(n);
+			for(int child = node->nextChild(); child != -1; node->markChildVisited(), child = node->nextChild()) {
+				node->slotsForNode[child] = 0;
+				divisor[child] = 0;
+			}
+			
+			node->adjacentVertices = route.getAdjacentVertices(n);
+			int elected = node->nextChild(); // first neighbor (0 would be root)
+			for(int j = 0; j < slotsAvailable; j++) {
+				node->adjacentVertices = route.getAdjacentVertices(n);
+				for(int child = node->nextChild(); child != -1; node->markChildVisited(), child = node->nextChild()) {
+					if(divisor[child] * (route.getDescendants(elected)+1) < divisor[elected] * (route.getDescendants(child)+1)) {
+						elected = child;
+					}
+				}
+
+				cout << "elected " << elected << endl;
+				node->slotsForNode[elected]++;
+				divisor[elected]++;
+			}
+
+			// Check
+			cout << "--" << endl;
+			node->adjacentVertices = route.getAdjacentVertices(n);
+			for(int child = node->nextChild(); child != -1; node->markChildVisited(), child = node->nextChild()) {
+				cout << node->slotsForNode[child] << " " << (route.getDescendants(child)+1) << endl;
+				if(node->slotsForNode[child] == 0) {
+					node->slotsForNode[child] = 1;
+				}
+			}
+			cout << "-------" << endl;
+		}
+		/*
+		std::pair<Route::Graph::adjacency_iterator, Route::Graph::adjacency_iterator> adjacentVertices = route.getAdjacentVertices(n);
+		for(; adjacentVertices.first != adjacentVertices.second; adjacentVertices.first++) {
+			const graph_traits<Route::Graph>::vertex_descriptor& child = *(adjacentVertices.first);
+			auto incoming = route.getPredecessor(child) == n;
+			if(incoming) {
+				node->slotsForNode[child] = route.getDescendants(child) + 1;
+			}
+		}
+		*/
+
+		//node->slotCorrection = slotCorrection;
+		// Reset vertex pointer
+		node->adjacentVertices = route.getAdjacentVertices(n);
+
 		if(dynamic_cast<TAMCNode*>(node)) {
 			dynamic_cast<TAMCNode*>(node)->B.resize(maxslots);
 		}

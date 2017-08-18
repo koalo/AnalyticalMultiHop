@@ -91,18 +91,19 @@ int main(int argc, char** argv)
 		RouteGenerator::create(experiment, experiment.getConnections(), experiment.getRoute());
 
 		string mac = vm["mac"].as<string>();
+		int lSTarget = experiment.getParameter<int>("lSTarget");
 		transform(mac.begin(), mac.end(), mac.begin(), ::toupper);
 		if(mac == "TAMC_TSCH") {
-			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),true,true);
+			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),lSTarget,true,true);
 		}
 		else if(mac == "TAMC_DSME") {
-			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),true,false);
+			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),lSTarget,true,false);
 		}
 		else if(mac == "TAMC_DSME_CAPRED") {
-			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),true,false,true);
+			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),lSTarget,true,false,true);
 		}
 		else if(mac == "TASC_TSCH") {
-			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),false,true);
+			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),lSTarget,false,true);
 		}
 		else if(mac == "ORCHESTRA") {
 			TDMAGenerator::createOrchestraSBD(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule());

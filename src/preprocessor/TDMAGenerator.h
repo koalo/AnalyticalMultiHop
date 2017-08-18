@@ -29,7 +29,7 @@ struct NoFreeSlotException : public std::exception
 
 class TDMAGenerator {
 public:
-	static void createTA(Experiment& experiment, Connections& connections, Route& route, TDMASchedule& schedule, bool multi_channel, bool tsch, bool cap_reduction = false);
+	static void createTA(Experiment& experiment, Connections& connections, Route& route, TDMASchedule& schedule, int lSTarget, bool multi_channel, bool tsch, bool cap_reduction = false);
 	static void createOrchestraSBD(Experiment& experiment, Connections& connections, Route& route, TDMASchedule& schedule);
 
 private:
