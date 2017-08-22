@@ -98,6 +98,10 @@ public:
 		adjacentVertices.first++;
 	}
 
+	void resetChildPointer() {
+		adjacentVertices = route->getAdjacentVertices(id);
+	}
+
 	int id;
 	int parent;
 	int si;
@@ -107,57 +111,93 @@ public:
 	std::pair<Route::Graph::adjacency_iterator, Route::Graph::adjacency_iterator> adjacentVertices;
 	int maxslots;
 	int startslot;
-	//double slotCorrection;
-	std::map<int,int> slotsForNode;
+	double slotCorrection;
+	int handledChildren = 0;
 };
 
 class TAMCNode : public TASCNode {
 public:
+	virtual void searchFreeSlots(int count, int v) {
+		for(int slot = startslot; slot < maxslots; slot++) {
+			if(schedule->getNodes()[id].slots[slot].type == TDMASchedule::Type::IDLE) {
+
+				// choose channel
+				int c = 11;
+				for(; c <= 11+16; c++) {
+					if(B.at(slot).find(c) == B.at(slot).end()) {
+						break;
+					}
+				}
+
+				assign(slot,v,TDMASchedule::Type::RX,c);
+				blockNeighbors(slot, c, v);
+
+				nodes->at(v)->assign(slot,id,TDMASchedule::Type::TX,c);
+				dynamic_cast<TAMCNode*>(nodes->at(v))->blockNeighbors(slot, c, id);
+
+				count--;
+				if(count == 0) {
+					break;
+				}
+			}
+		}
+
+		auto& node = schedule->getNodes()[id];
+		node.printSlots();
+
+		assert(count == 0);
+	}
+
 	virtual void handleNode(int nextSlot) {
 		int v = nextChild();
 		if(v != -1) {
 			markChildVisited();
 
-			int s = slotsForNode[v];
-			//int s = route->getDescendants(v) + 1;
-			//int s = round((route->getDescendants(v) + 1)*slotCorrection);
-			//s = max(1,s);
-			assert(s >= 1);
-			for(int slot = startslot; slot < maxslots; slot++) {
-				if(schedule->getNodes()[id].slots[slot].type == TDMASchedule::Type::IDLE) {
-
-					// choose channel
-					int c = 11;
-					for(; c <= 11+16; c++) {
-						if(B.at(slot).find(c) == B.at(slot).end()) {
-							break;
-						}
-					}
-
-					assign(slot,v,TDMASchedule::Type::RX,c);
-					blockNeighbors(slot, c, v);
-
-					nodes->at(v)->assign(slot,id,TDMASchedule::Type::TX,c);
-					dynamic_cast<TAMCNode*>(nodes->at(v))->blockNeighbors(slot, c, id);
-
-					s--;
-					if(s == 0) {
-						break;
-					}
-				}
+			int s;
+			if(slotCorrection > 0) {
+				// fixed size schedule (lSTarget > 0)
+				s = 1; // first unconditional slot
+			}
+			else {
+				s = route->getDescendants(v) + 1;
 			}
 
-			auto& node = schedule->getNodes()[id];
-			node.printSlots();
-
-			cout << "slotsLeft " << s << endl;
-
-			assert(s == 0);
+			searchFreeSlots(s,v);
+			handledChildren++;
 
 			nodes->at(v)->forward(nextSlot);
 		}
-		else if(id != 0) { // node is leaf or sub tree fully handled
-			nodes->at(parent)->backtrack(nextSlot+si,si);
+		else { // node is leaf or sub tree fully handled
+			if(slotCorrection > 0) {
+				// fixed size schedule (lSTarget > 0)
+				int s = floor(slotCorrection*route->getDescendants(id)); // floor, otherwise it is not guaranteed that all nodes find a free slot
+				s -= handledChildren; // that many children already got a slot
+				std::map<int,int> divisor;
+				resetChildPointer();
+				for(int child = nextChild(); child != -1; markChildVisited(), child = nextChild()) {
+					divisor[child] = 0;
+				}
+
+				resetChildPointer();
+				int elected = nextChild(); // first neighbor (0 would be root)
+				while(s > 0) {
+					resetChildPointer();
+					for(int child = nextChild(); child != -1; markChildVisited(), child = nextChild()) {
+						if(divisor[child] * (route->getDescendants(elected)+1) < divisor[elected] * (route->getDescendants(child)+1)) {
+							elected = child;
+						}
+					}
+
+					cout << "elected " << elected << endl;
+					searchFreeSlots(1,elected);
+					divisor[elected]++;
+					s--;
+				}
+			}
+
+			if(id != 0) { 
+				nodes->at(parent)->backtrack(nextSlot+si,si);
+			}
 		}
 	}
 
@@ -205,7 +245,7 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 		}
 	}
 
-	double slotCorrection = 1;
+	double slotCorrection = -1;
 	if(lSTarget > 0) {
 		slotCorrection = lSTarget/(double)maxslots;
 		cout << "slotCorrection " << slotCorrection << " " << lSTarget << " " << maxslots << endl;
@@ -225,10 +265,6 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 		node.slots.resize(maxslots);
 	}
 
-	// initialize divisors for lSTarget > 0 calculation
-	std::vector<int> divisor;
-	divisor.resize(route.getNodeCount());
-
 	// initialize nodes
 	std::vector<TASCNode*> tanodes;
 	for(int n = 0; n < route.getNodeCount(); n++) {
@@ -246,66 +282,8 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 		node->route = &route;
 		node->maxslots = maxslots;
 		node->startslot = startslot;
-
-		// Calculate slots for node
-		if(lSTarget <= 0) {
-			node->adjacentVertices = route.getAdjacentVertices(n);
-			for(int child = node->nextChild(); child != -1; node->markChildVisited(), child = node->nextChild()) {
-				node->slotsForNode[child] = route.getDescendants(child) + 1;
-			}
-		}
-		else {
-			//int slotsAvailable = floor(slotCorrection*route.getDescendants(n)); // floor, otherwise it is not guaranteed that downstream nodes find a free slot
-			int slotsAvailable = ceil(slotCorrection*route.getDescendants(n)); // floor, otherwise it is not guaranteed that downstream nodes find a free slot
-
-			cout << "Slots Available " << slotsAvailable << " " << slotCorrection*route.getDescendants(n) << " " << slotCorrection << endl;
-
-			node->adjacentVertices = route.getAdjacentVertices(n);
-			for(int child = node->nextChild(); child != -1; node->markChildVisited(), child = node->nextChild()) {
-				node->slotsForNode[child] = 0;
-				divisor[child] = 0;
-			}
-			
-			node->adjacentVertices = route.getAdjacentVertices(n);
-			int elected = node->nextChild(); // first neighbor (0 would be root)
-			for(int j = 0; j < slotsAvailable; j++) {
-				node->adjacentVertices = route.getAdjacentVertices(n);
-				for(int child = node->nextChild(); child != -1; node->markChildVisited(), child = node->nextChild()) {
-					if(divisor[child] * (route.getDescendants(elected)+1) < divisor[elected] * (route.getDescendants(child)+1)) {
-						elected = child;
-					}
-				}
-
-				cout << "elected " << elected << endl;
-				node->slotsForNode[elected]++;
-				divisor[elected]++;
-			}
-
-			// Check
-			cout << "--" << endl;
-			node->adjacentVertices = route.getAdjacentVertices(n);
-			for(int child = node->nextChild(); child != -1; node->markChildVisited(), child = node->nextChild()) {
-				cout << node->slotsForNode[child] << " " << (route.getDescendants(child)+1) << endl;
-				if(node->slotsForNode[child] == 0) {
-					node->slotsForNode[child] = 1;
-				}
-			}
-			cout << "-------" << endl;
-		}
-		/*
-		std::pair<Route::Graph::adjacency_iterator, Route::Graph::adjacency_iterator> adjacentVertices = route.getAdjacentVertices(n);
-		for(; adjacentVertices.first != adjacentVertices.second; adjacentVertices.first++) {
-			const graph_traits<Route::Graph>::vertex_descriptor& child = *(adjacentVertices.first);
-			auto incoming = route.getPredecessor(child) == n;
-			if(incoming) {
-				node->slotsForNode[child] = route.getDescendants(child) + 1;
-			}
-		}
-		*/
-
-		//node->slotCorrection = slotCorrection;
-		// Reset vertex pointer
-		node->adjacentVertices = route.getAdjacentVertices(n);
+		node->slotCorrection = slotCorrection;
+		node->resetChildPointer();
 
 		if(dynamic_cast<TAMCNode*>(node)) {
 			dynamic_cast<TAMCNode*>(node)->B.resize(maxslots);
@@ -321,23 +299,6 @@ void TDMAGenerator::createTA(Experiment& experiment, Connections& connections, R
 	
 
 	cout << "----------------" << endl;
-
-#if 1
-	// Shuffle
-	for(int n = 0; n < route.getNodeCount(); n++) {
-		auto& slots = schedule.getNodes()[n].slots;
-		auto from = slots.begin();
-
-		if(tsch) {
-			++from;
-		}
-
-		auto to = slots.end();
-
-		shuffle(from,to,default_random_engine{});
-	}
-#endif
-
 
 	if(!tsch) {
 		// Add Beacon and CAP and fill to full superframes
