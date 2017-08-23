@@ -168,9 +168,13 @@ public:
 			nodes->at(v)->forward(nextSlot);
 		}
 		else { // node is leaf or sub tree fully handled
-			if(slotCorrection > 0) {
+			if(slotCorrection > 0 && handledChildren > 0) {
 				// fixed size schedule (lSTarget > 0)
-				int s = floor(slotCorrection*route->getDescendants(id)); // floor, otherwise it is not guaranteed that all nodes find a free slot
+				//int s = floor(slotCorrection*route->getDescendants(id)); // floor, otherwise it is not guaranteed that all nodes find a free slot
+				int s = floor((maxslots-startslot)/2);
+				if(id == 0) { 
+					s = maxslots-startslot;
+				}
 				s -= handledChildren; // that many children already got a slot
 				std::map<int,int> divisor;
 				resetChildPointer();
@@ -180,11 +184,13 @@ public:
 
 				resetChildPointer();
 				int elected = nextChild(); // first neighbor (0 would be root)
+				cout << "e " << elected << endl;
 				while(s > 0) {
 					resetChildPointer();
 					for(int child = nextChild(); child != -1; markChildVisited(), child = nextChild()) {
 						if(divisor[child] * (route->getDescendants(elected)+1) < divisor[elected] * (route->getDescendants(child)+1)) {
 							elected = child;
+							cout << "e " << elected << endl;
 						}
 					}
 
