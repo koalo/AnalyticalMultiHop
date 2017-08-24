@@ -33,9 +33,9 @@ void Queue::create(TDMASchedule::Node& nodeSchedule, uint16_t K) {
 	nT = 0;
 	for(auto& slot : nodeSchedule.slots) {
 		if(slot.type == TDMASchedule::Type::TX) {
+			T[nT] = schedule_length;
 			nT++;
 			assert(schedule_length < MAX_SCHEDULE_LENGTH);
-			T[schedule_length] = schedule_length;
 		}
 		schedule_length++;
 	}
@@ -113,18 +113,20 @@ PetscScalar Queue::calcDelay(PetscInt q, PetscInt i) {
 	PetscScalar fq = ceil((q/(PetscScalar)nT)-1);
 
 	PetscScalar result = fq*schedule_length;
+	result += 1; // transmission duration itself
+
 	uint16_t packets_left = q; // subtracting fq*nT is not neccessary due to the % nT
-	uint16_t nxtTx = prevTxId[i]; 
+	uint16_t nxtTx = prevTxId[i]; // phi
 	nxtTx = (nxtTx+packets_left)%nT;
-	uint16_t endi = T[nxtTx];
-	if(endi >= i) {
-		result += endi - i;
+	uint16_t j = T[nxtTx];
+
+	// delta
+	if(j >= i) {
+		result += j - i;
 	}
 	else {
-		result += schedule_length-i+endi;
+		result += j - i + schedule_length;
 	}
-
-	result += 1; // transmission duration itself
 
 	return result;
 }
