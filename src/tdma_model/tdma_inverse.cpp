@@ -19,7 +19,7 @@
  * along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-static char help[] = "Run as ./tdma_inverse --queue QUEUE_LENGTH --slots SLOT_COUNT (--Paccept TARGET_PACCEPT | --delay TARGET_DELAY)\n\n";
+static char help[] = "Run as ./tdma_inverse --queue QUEUE_LENGTH --tx 0,1,0,0,...,1 (--Paccept TARGET_PACCEPT | --delay TARGET_DELAY)\n\n";
 
 #include <petscsnes.h>
 #include <iostream>
@@ -30,7 +30,6 @@ using namespace std;
 
 extern PetscErrorCode FormFunction(SNES,Vec,Vec,void*);
 extern PetscErrorCode FormInitialGuess(Vec);
-extern PetscErrorCode GenerateSchedule(TDMASchedule::Node& schedule, int tx_slots);
 
 struct Context {
 	Queue queue;
@@ -59,7 +58,6 @@ int main(int argc,char **argv)
 	   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
 	Context context;
 	PetscInt queueLength;
-	PetscInt slotCount;
 
 	PetscBool found;
 	ierr = PetscOptionsGetInt(PETSC_NULL,NULL,"--queue",
@@ -70,13 +68,18 @@ int main(int argc,char **argv)
 		return 1;
 	}
 
-	ierr = PetscOptionsGetInt(PETSC_NULL,NULL,"--slots",
-			&slotCount,&found);CHKERRQ(ierr);
+	char buffer[500];
+	ierr = PetscOptionsGetString(PETSC_NULL,NULL,"--tx",
+			buffer,sizeof(buffer),&found);CHKERRQ(ierr);
 	if(!found) {
-		std::cout << "Slot count has to be provided!" << std::endl;
+		std::cout << "TX slots have to be provided!" << std::endl;
 		std::cout << help << std::endl;
 		return 1;
 	}
+	string s = buffer;
+
+	TDMASchedule::Node schedule;
+	schedule.TXfromCommaSeparatedString(s);
 
 	PetscBool foundPaccept;
 	ierr = PetscOptionsGetScalar(PETSC_NULL,NULL,"--Paccept",
@@ -102,8 +105,6 @@ int main(int argc,char **argv)
 	/* - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
 	   Setup schedule 
 	   - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - */
-	TDMASchedule::Node schedule;
-	GenerateSchedule(schedule,slotCount);
 
 	context.queue.setTolerance(1e-10);
 	context.queue.create(schedule,queueLength);
@@ -242,61 +243,17 @@ PetscErrorCode FormFunction(SNES snes,Vec x,Vec f,void *ctx)
 	ierr = context->queue.calculate(&Paccept,&delay); CHKERRQ(ierr);
 
 	if(context->PacceptTarget > 0) {
-		ff[0] = sigInv(Paccept) - sigInv(context->PacceptTarget);
+		double shift = 1e-10; // avoid sigInv(1)
+		ff[0] = sigInv(Paccept-shift) - sigInv(context->PacceptTarget-shift);
 	}
 	else {
 		PetscScalar delayNormalized = (delay-context->delayMin)/(context->delayMax-context->delayMin);
 		ff[0] = sigInv(delayNormalized) - sigInv(context->delayTargetNormalized);
 	}
 
-	cout << setprecision(10) << "xx[0] " << xx[0] << " lambda " << lambda << " " << Paccept << " delay " << delay << " err " << ff[0] << endl;
+	cout << setprecision(10) << "xx[0] " << xx[0] << " lambda " << lambda << " Paccept " << Paccept << " delay " << delay << " err " << ff[0] << endl;
 
 	ierr = VecRestoreArrayRead(x,&xx);CHKERRQ(ierr);
 	ierr = VecRestoreArray(f,&ff);CHKERRQ(ierr);
-	return 0;
-}
-
-struct NoFreeSlotException : public std::exception
-{
-};
-
-PetscErrorCode GenerateSchedule(TDMASchedule::Node& schedule, int tx_slots)
-{
-	int SO = 3;
-	int MO = 5;
-	int superframes = 1 << (MO-SO);
-	int total_slots = 16*superframes;
-
-	// Generate empty schedule
-	schedule.slots.resize(total_slots);
-	for(int s = 0; s < superframes; s++) {
-		for(int i = 0; i < 9; i++) { // beacon + 8*CAP
-			schedule.slots[s*16+i].type = TDMASchedule::Type::BLOCKED;
-		}
-	}
-
-	// Add TX slots
-	int slot = 0;
-	float meanDist = total_slots/tx_slots;
-	for(int i = 0; i < tx_slots; i++) {
-		bool wrap = false;
-		while(schedule.slots[slot].type != TDMASchedule::Type::IDLE) {
-			slot++;
-			if(slot >= total_slots) {
-				if(wrap) {
-					throw NoFreeSlotException();
-				}
-				else {
-					slot = 0;
-					wrap = true;
-				}
-			}
-		}
-		schedule.slots[slot].type = TDMASchedule::Type::TX;
-		schedule.slots[slot].counterpart = 0;
-
-		slot = (slot+(int)(meanDist+0.5))%total_slots;
-	}
-
 	return 0;
 }

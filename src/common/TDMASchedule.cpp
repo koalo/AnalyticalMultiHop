@@ -21,6 +21,7 @@
 #include "TDMASchedule.h"
 #include "Experiment.h"
 #include <iostream>
+#include <regex>
 
 #include <boost/property_tree/json_parser.hpp>
 
@@ -129,4 +130,23 @@ void TDMASchedule::Node::printSlots() {
 		std::cout << " ";
 	}
 	std::cout << endl;
+}
+
+void TDMASchedule::Node::TXfromCommaSeparatedString(const std::string& tx) {
+	slots.clear();
+	regex re("[\\s,]+");
+	sregex_token_iterator it(tx.begin(), tx.end(), re, -1);
+	sregex_token_iterator reg_end;
+	for (; it != reg_end; ++it) {
+		int tx = atoi(it->str().c_str());
+		TDMASchedule::Slot slot;
+		slot.counterpart = 0;
+		if(tx) {
+			slot.type = TDMASchedule::Type::TX;
+		}
+		else {
+			slot.type = TDMASchedule::Type::IDLE;
+		}
+		slots.push_back(slot);
+	}
 }

@@ -39,6 +39,7 @@ public:
 	public:
 		std::vector<Slot> slots;
 		void printSlots();
+		void TXfromCommaSeparatedString(const std::string& tx);
 	};
 
 	bool isCalculated() {

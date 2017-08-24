@@ -60,23 +60,8 @@ int main(int argc,char **argv)
 
 
 	TDMASchedule::Node schedule;
-
 	string s = buffer;
-	regex re("[\\s,]+");
-	sregex_token_iterator it(s.begin(), s.end(), re, -1);
-	sregex_token_iterator reg_end;
-	for (; it != reg_end; ++it) {
-		int tx = atoi(it->str().c_str());
-		TDMASchedule::Slot slot;
-		slot.counterpart = 0;
-		if(tx) {
-			slot.type = TDMASchedule::Type::TX;
-		}
-		else {
-			slot.type = TDMASchedule::Type::IDLE;
-		}
-		schedule.slots.push_back(slot);
-	}
+	schedule.TXfromCommaSeparatedString(s);
 
 	Queue queue;
 	queue.setTolerance(1e-10);
@@ -100,6 +85,7 @@ int main(int argc,char **argv)
 	}
 
 	s = buffer;
+	regex re("[\\s,]+");
 	sregex_token_iterator it2(s.begin(), s.end(), re, -1);
 	sregex_token_iterator reg_end2;
 	unsigned int i = 0;
