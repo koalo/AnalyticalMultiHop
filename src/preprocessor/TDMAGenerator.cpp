@@ -179,7 +179,7 @@ public:
 				std::map<int,int> divisor;
 				resetChildPointer();
 				for(int child = nextChild(); child != -1; markChildVisited(), child = nextChild()) {
-					divisor[child] = 0;
+					divisor[child] = 1;
 				}
 
 				resetChildPointer();
