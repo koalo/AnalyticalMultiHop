@@ -20,19 +20,19 @@ OBJECTS_preprocessor = $(addprefix obj/preprocessor/,$(SRC_preprocessor:.cpp=.o)
 include ${PETSC_DIR}/lib/petsc/conf/variables
 include ${PETSC_DIR}/lib/petsc/conf/rules
 
-csma_model: $(OBJECTS_csma_model) chkopts
+csma_model: $(OBJECTS_csma_model) | chkopts
 	-${CLINKER} -o csma_model $(OBJECTS_csma_model) ${PETSC_DM_LIB} $(LIBS)
 
-tdma_model: $(OBJECTS_tdma_model) chkopts
+tdma_model: $(OBJECTS_tdma_model) | chkopts
 	-${CLINKER} -o tdma_model $(OBJECTS_tdma_model) ${PETSC_DM_LIB} $(LIBS)
 
-tdma_inverse: $(OBJECTS_tdma_inverse) chkopts
+tdma_inverse: $(OBJECTS_tdma_inverse) | chkopts
 	-${CLINKER} -o tdma_inverse $(OBJECTS_tdma_inverse) ${PETSC_DM_LIB} $(LIBS)
 
-tdma_single: $(OBJECTS_tdma_single) chkopts
+tdma_single: $(OBJECTS_tdma_single) | chkopts
 	-${CLINKER} -o tdma_single $(OBJECTS_tdma_single) ${PETSC_DM_LIB} $(LIBS)
 
-preprocessor: $(OBJECTS_preprocessor) chkopts
+preprocessor: $(OBJECTS_preprocessor) | chkopts
 	-${CLINKER} -o preprocessor $(OBJECTS_preprocessor) ${PETSC_DM_LIB} $(LIBS)
 
 obj/preprocessor/%.o: %.cpp
