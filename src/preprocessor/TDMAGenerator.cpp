@@ -65,12 +65,12 @@ public:
 		}
 	}
 
-	void forward(int nextSlot) {
+	virtual void forward(int nextSlot) {
 		si = 1;
 		handleNode(nextSlot);
 	}
 
-	void backtrack(int nextSlot, int slotsOfChild) {
+	virtual void backtrack(int nextSlot, int slotsOfChild) {
 		if(id != 0) {
 			si = si + slotsOfChild;
 		}
@@ -78,6 +78,7 @@ public:
 	}
 
 	virtual void assign(int slot, int counterpart, TDMASchedule::Type type, int channel) {
+		assert(schedule->getNodes()[id].slots[slot].type == TDMASchedule::Type::IDLE);
 		schedule->getNodes()[id].slots[slot].type = type;
 		schedule->getNodes()[id].slots[slot].counterpart = counterpart;
 		schedule->getNodes()[id].slots[slot].channel = channel;
@@ -112,22 +113,23 @@ public:
 	int maxslots;
 	int startslot;
 	double slotCorrection;
-	int handledChildren = 0;
 };
 
 class TAMCNode : public TASCNode {
 public:
 	virtual void searchFreeSlots(int count, int v) {
+		assert(count > 0);
 		for(int slot = startslot; slot < maxslots; slot++) {
 			if(schedule->getNodes()[id].slots[slot].type == TDMASchedule::Type::IDLE) {
 
 				// choose channel
 				int c = 11;
-				for(; c <= 11+16; c++) {
+				for(; c <= 11+16+1; c++) {
 					if(B.at(slot).find(c) == B.at(slot).end()) {
 						break;
 					}
 				}
+				assert(c <= 11+16); // valid channel found?
 
 				assign(slot,v,TDMASchedule::Type::RX,c);
 				blockNeighbors(slot, c, v);
@@ -148,34 +150,25 @@ public:
 		assert(count == 0);
 	}
 
-	virtual void handleNode(int nextSlot) {
-		int v = nextChild();
-		if(v != -1) {
-			markChildVisited();
+	virtual void forward(int nextSlot) {
+		si = 1;
 
-			int s;
-			if(slotCorrection > 0) {
-				// fixed size schedule (lSTarget > 0)
-				s = 1; // first unconditional slot
-			}
-			else {
-				s = route->getDescendants(v) + 1;
+		if(slotCorrection > 0) {
+			resetChildPointer();
+			int children = 0;
+			for(int child = nextChild(); child != -1; markChildVisited(), child = nextChild()) {
+				children++;
+				searchFreeSlots(1,child);
 			}
 
-			searchFreeSlots(s,v);
-			handledChildren++;
-
-			nodes->at(v)->forward(nextSlot);
-		}
-		else { // node is leaf or sub tree fully handled
-			if(slotCorrection > 0 && handledChildren > 0) {
+			if(children > 0) {
 				// fixed size schedule (lSTarget > 0)
 				//int s = floor(slotCorrection*route->getDescendants(id)); // floor, otherwise it is not guaranteed that all nodes find a free slot
 				int s = floor((maxslots-startslot)/2);
 				if(id == 0) { 
 					s = maxslots-startslot;
 				}
-				s -= handledChildren; // that many children already got a slot
+				s -= children; // that many children already got a slot
 				std::map<int,int> divisor;
 				resetChildPointer();
 				for(int child = nextChild(); child != -1; markChildVisited(), child = nextChild()) {
@@ -184,7 +177,7 @@ public:
 
 				resetChildPointer();
 				int elected = nextChild(); // first neighbor (0 would be root)
-				cout << "e " << elected << endl;
+				cout << id << " start e " << elected << endl;
 				while(s > 0) {
 					resetChildPointer();
 					for(int child = nextChild(); child != -1; markChildVisited(), child = nextChild()) {
@@ -194,13 +187,32 @@ public:
 						}
 					}
 
-					cout << "elected " << elected << endl;
+					cout << id << " elected " << elected << endl;
 					searchFreeSlots(1,elected);
 					divisor[elected]++;
 					s--;
 				}
 			}
 
+			resetChildPointer();
+		}
+
+		handleNode(nextSlot);
+	}
+
+	virtual void handleNode(int nextSlot) {
+		int v = nextChild();
+		if(v != -1) {
+			markChildVisited();
+
+			if(slotCorrection <= 0) {
+				int s = route->getDescendants(v) + 1;
+				searchFreeSlots(s,v);
+			}
+
+			nodes->at(v)->forward(nextSlot);
+		}
+		else { // node is leaf or sub tree fully handled
 			if(id != 0) { 
 				nodes->at(parent)->backtrack(nextSlot+si,si);
 			}
