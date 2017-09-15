@@ -121,7 +121,7 @@ PetscErrorCode ResultWriter::store(Vec& X, Vec& F, DM& circuitdm, UserCtx *user,
 						else {
 							Wk = pow(2,user->mb);
 						}
-						inner += ((Wk-1)/2)*user->Sb;
+						inner += ((Wk-1)/2); 
 					}
 					Eth += (pow(result.alpha,i)*(1-result.alpha)/(1-pow(result.alpha,user->m+1))) * inner;
 				}
