@@ -1,7 +1,7 @@
 all: tdma_model tdma_inverse tdma_single csma_model preprocessor
 
 CFLAGS	         = -O3 -Isrc/common/ -MMD
-CPPFLAGS         = $(CFLAGS) -std=c++11 -Wfatal-errors -g -Wno-literal-suffix
+CPPFLAGS         = $(CFLAGS) -std=c++11 -Wfatal-errors -Wno-literal-suffix -g0
 LIBS		 = -lboost_program_options -lboost_system -lboost_filesystem -lboost_graph
 
 SRC_common = src/common/Route.cpp src/common/Experiment.cpp src/common/Relations.cpp src/common/Topology.cpp src/common/TDMASchedule.cpp
