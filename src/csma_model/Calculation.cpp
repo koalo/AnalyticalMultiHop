@@ -68,7 +68,7 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGener
 	PetscInt keyv;
 	PetscInt offsetlink;
 	PetscErrorCode ierr;
-	ierr = DMNetworkGetComponentTypeOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
+	ierr = DMNetworkGetComponentKeyOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
 
 	LINKDATA link = (LINKDATA)(arr+offsetlink);
 
@@ -99,7 +99,7 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGener
 		PetscInt e = connedges[i];
 
 		const PetscInt *cone;
-		ierr = DMNetworkGetConnectedNodes(circuitdm,e,&cone);CHKERRQ(ierr);
+		ierr = DMNetworkGetConnectedVertices(circuitdm,e,&cone);CHKERRQ(ierr);
 		PetscInt vaffected,vsource;
 		vaffected = cone[0];
 		vsource   = cone[1];
@@ -107,14 +107,14 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGener
 		if (vaffected == v) {
 			PetscInt keye;
 			PetscInt offsetrel;
-			ierr = DMNetworkGetComponentTypeOffset(circuitdm,e,0,&keye,&offsetrel);CHKERRQ(ierr);
+			ierr = DMNetworkGetComponentKeyOffset(circuitdm,e,0,&keye,&offsetrel);CHKERRQ(ierr);
 			RELATIONDATA relation = (RELATIONDATA)(arr+offsetrel);
 
 			PetscInt offsetsource,offsetsourcelink;
 			ierr = DMNetworkGetVariableOffset(circuitdm,vsource,&offsetsource);CHKERRQ(ierr);
 
 			PetscInt keysourcev;
-			ierr = DMNetworkGetComponentTypeOffset(circuitdm,vsource,0,
+			ierr = DMNetworkGetComponentKeyOffset(circuitdm,vsource,0,
 					&keysourcev,&offsetsourcelink);CHKERRQ(ierr);
 			LINKDATA sourcelink = (LINKDATA)(arr+offsetsourcelink);
 
@@ -390,7 +390,7 @@ PetscErrorCode CalculatePathReliability(DM& circuitdm, DMNetworkComponentGeneric
 	do {
 		PetscInt keyv;
 		PetscInt offsetlink;
-		ierr = DMNetworkGetComponentTypeOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
+		ierr = DMNetworkGetComponentKeyOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
 
 		LINKDATA link = (LINKDATA)(arr+offsetlink);
 
@@ -536,7 +536,7 @@ PetscErrorCode SetInitialValues(DM circuitdm,Vec X,void *appctx)
 		PetscInt offsetlink, offset;
 		PetscInt keyv;
 		ierr = DMNetworkGetVariableOffset(circuitdm,v,&offset);CHKERRQ(ierr);
-		ierr = DMNetworkGetComponentTypeOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
+		ierr = DMNetworkGetComponentKeyOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
 
 		LINKDATA link = (LINKDATA)(arr+offsetlink);
 

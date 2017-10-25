@@ -148,7 +148,7 @@ PetscErrorCode ResultWriter::store(Vec& X, Vec& F, DM& circuitdm, UserCtx *user,
 		do {
 			PetscInt keyv;
 			PetscInt offsetlink;
-			ierr = DMNetworkGetComponentTypeOffset(circuitdm,vn,0,&keyv,&offsetlink);CHKERRQ(ierr);
+			ierr = DMNetworkGetComponentKeyOffset(circuitdm,vn,0,&keyv,&offsetlink);CHKERRQ(ierr);
 
 			LINKDATA link = (LINKDATA)(arr+offsetlink);
 

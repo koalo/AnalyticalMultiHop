@@ -32,7 +32,7 @@ PetscErrorCode EvaluateNode(DM& circuitdm, int v, DMNetworkComponentGenericDataT
 	PetscInt keyv;
 	PetscInt offsetlink;
 	PetscErrorCode ierr;
-	ierr = DMNetworkGetComponentTypeOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
+	ierr = DMNetworkGetComponentKeyOffset(circuitdm,v,0,&keyv,&offsetlink);CHKERRQ(ierr);
 
 	NODEDATA node = (NODEDATA)(arr+offsetlink);
 
@@ -46,13 +46,13 @@ PetscErrorCode EvaluateNode(DM& circuitdm, int v, DMNetworkComponentGenericDataT
 		PetscInt e = connedges[i];
 
 		const PetscInt *cone;
-		ierr = DMNetworkGetConnectedNodes(circuitdm,e,&cone);CHKERRQ(ierr);
+		ierr = DMNetworkGetConnectedVertices(circuitdm,e,&cone);CHKERRQ(ierr);
 		PetscInt from;
 		from = cone[0];
 
 		PetscInt keye;
 		PetscInt offsetrel;
-		ierr = DMNetworkGetComponentTypeOffset(circuitdm,e,0,&keye,&offsetrel);CHKERRQ(ierr);
+		ierr = DMNetworkGetComponentKeyOffset(circuitdm,e,0,&keye,&offsetrel);CHKERRQ(ierr);
 		SLOTDATA slot = (SLOTDATA)(arr+offsetrel);
 
 		if(v == from) {
@@ -62,7 +62,7 @@ PetscErrorCode EvaluateNode(DM& circuitdm, int v, DMNetworkComponentGenericDataT
 			// RX slot
 			PetscInt offsettx,offsettxnode,keytxv;
 			ierr = DMNetworkGetVariableOffset(circuitdm,from,&offsettx);CHKERRQ(ierr);
-			ierr = DMNetworkGetComponentTypeOffset(circuitdm,from,0,
+			ierr = DMNetworkGetComponentKeyOffset(circuitdm,from,0,
 					&keytxv,&offsettxnode);CHKERRQ(ierr);
 			node->queue.setPrecv(slot->pos, slot->Pactive);
 		}
@@ -87,13 +87,13 @@ PetscErrorCode EvaluateNode(DM& circuitdm, int v, DMNetworkComponentGenericDataT
 		PetscInt e = connedges[i];
 
 		const PetscInt *cone;
-		ierr = DMNetworkGetConnectedNodes(circuitdm,e,&cone);CHKERRQ(ierr);
+		ierr = DMNetworkGetConnectedVertices(circuitdm,e,&cone);CHKERRQ(ierr);
 		PetscInt from;
 		from = cone[0];
 
 		PetscInt keye;
 		PetscInt offsetrel;
-		ierr = DMNetworkGetComponentTypeOffset(circuitdm,e,0,&keye,&offsetrel);CHKERRQ(ierr);
+		ierr = DMNetworkGetComponentKeyOffset(circuitdm,e,0,&keye,&offsetrel);CHKERRQ(ierr);
 		SLOTDATA slot = (SLOTDATA)(arr+offsetrel);
 
 		if(v == from) {
@@ -156,13 +156,13 @@ PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx)
 			PetscInt e = connedges[i];
 
 			const PetscInt *cone;
-			ierr = DMNetworkGetConnectedNodes(circuitdm,e,&cone);CHKERRQ(ierr);
+			ierr = DMNetworkGetConnectedVertices(circuitdm,e,&cone);CHKERRQ(ierr);
 			PetscInt from;
 			from = cone[0];
 
 			PetscInt keye;
 			PetscInt offsetrel;
-			ierr = DMNetworkGetComponentTypeOffset(circuitdm,e,0,&keye,&offsetrel);CHKERRQ(ierr);
+			ierr = DMNetworkGetComponentKeyOffset(circuitdm,e,0,&keye,&offsetrel);CHKERRQ(ierr);
 			SLOTDATA slot = (SLOTDATA)(arr+offsetrel);
 
 			if(v == from) {

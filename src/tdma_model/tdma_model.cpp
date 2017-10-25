@@ -239,11 +239,8 @@ int main(int argc, char** argv)
 
 	ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);CHKERRQ(ierr);
 	if (size > 1) {
-		DM distcircuitdm;
 		/* Circuit partitioning and distribution of data */
-		ierr = DMNetworkDistribute(circuitdm,0,&distcircuitdm);CHKERRQ(ierr);
-		ierr = DMDestroy(&circuitdm);CHKERRQ(ierr);
-		circuitdm = distcircuitdm;
+		ierr = DMNetworkDistribute(&circuitdm,0);CHKERRQ(ierr);
 	}
 
 	PetscLogStagePop();

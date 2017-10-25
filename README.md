@@ -17,7 +17,7 @@ of the 11th International Conference on the Design of Reliable Communication Net
 The program is based on the <a href="https://www.mcs.anl.gov/petsc/">Portable, Extensible Toolkit for Scientific Computation (PETSc)</a>. So the first step is to install it according to this <a href="https://www.mcs.anl.gov/petsc/documentation/installation.html">documentation</a>. For Linux with APT and Bash it basically boils down to:
 
     sudo apt-get update
-    sudo apt-get install git build-essential gcc g++ gfortran 
+    sudo apt-get install git build-essential gcc g++ gfortran python
     cd ~/
     git clone -b maint https://bitbucket.org/petsc/petsc petsc
     cd petsc
@@ -37,7 +37,7 @@ Now to the software in this repository:
 
 The program is now ready to use. However, if you want to use the Python interface (see below), the following steps have to be executed, too:
 
-    sudo apt-get install python3 python3-pip graphviz libgraphviz-dev pkg-config
+    sudo apt-get install python3 python3-pip graphviz libgraphviz-dev pkg-config libfreetype6-dev
     sudo -H pip3 install virtualenv
     cd ~/analyticalmultihop
     virtualenv -p python3 ./amenv
