@@ -103,7 +103,7 @@ int main(int argc, char** argv)
 		}
 
 		user.outerCircle = experiment.getIntermediate<int>("nodesOnOuterCircle");
-
+		user.inverse = experiment.getParameter<double>("inverse");
 
 		PetscReal freqUp = 1/experiment.getParameter<double>("intervalUp"); // Hz
 		freqUp /= 1000000; // uHz
@@ -172,6 +172,8 @@ int main(int argc, char** argv)
 		}
 	}
 
+	user.schedule = &experiment.getTDMASchedule();
+
 	if(debug) {
 		cout << "Nodes:" << endl;
 		for(int i = 0; i < numVertices; i++) {
@@ -227,6 +229,11 @@ int main(int argc, char** argv)
 		ierr = DMNetworkAddNumVariables(circuitdm,i,VAR_NVARS);CHKERRQ(ierr);
 	}
 
+	if(user.inverse) {
+		/* Add additional variable */
+		ierr = DMNetworkAddNumVariables(circuitdm,eEnd,1);CHKERRQ(ierr);
+	}
+
 	/* Set up DM for use */
 	ierr = DMSetUp(circuitdm);CHKERRQ(ierr);
 
@@ -264,8 +271,7 @@ int main(int argc, char** argv)
 
 	/* Print out result */
 	ResultWriter resultWriter;
-	TDMASchedule& schedule = experiment.getTDMASchedule();
-	resultWriter.store(X,circuitdm,&user,schedule,experiment);
+	resultWriter.store(X,circuitdm,&user,experiment);
 
 	if(!rank) {
 		resultWriter.write(experiment.getResultFileName(experiment_file));

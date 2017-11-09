@@ -38,7 +38,22 @@ PetscErrorCode EvaluateNode(DM& circuitdm, int v, DMNetworkComponentGenericDataT
 
 	PetscInt nconnedges;
 
-	node->queue.setLambda(node->packet_generation);
+	if(!user->inverse) {
+		node->queue.setLambda(node->packet_generation);
+	}
+	else {
+		PetscInt eStart,eEnd,offset;
+		ierr = DMNetworkGetVertexRange(circuitdm,&eStart,&eEnd);CHKERRQ(ierr);
+		ierr = DMNetworkGetVariableOffset(circuitdm,eEnd,&offset);CHKERRQ(ierr);
+
+		// for avoiding zero pivot TODO remove
+		//if(node->packet_generation > 1e-10) {
+		//	node->queue.setLambda(xarr[offset]);
+		//}
+		//else {
+			node->queue.setLambda(xarr[offset]*1e-9);
+		//}
+	}
 
 	const PetscInt *connedges;
 	ierr = DMNetworkGetSupportingEdges(circuitdm,v,&nconnedges,&connedges);CHKERRQ(ierr);
@@ -139,15 +154,26 @@ PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx)
 
 	ierr = DMNetworkGetComponentDataArray(circuitdm,&arr);CHKERRQ(ierr);
 
-	for (v=vStart; v < vEnd; v++) {
+	vector<Result> resultVec; // only for inverse calculation
+	if(user->inverse) {
+		resultVec.resize(vEnd-vStart);
+	}
+
+	unsigned int j = 0;
+	for (v=vStart; v < vEnd; v++, j++) {
 		PetscBool   ghostvtex;
 		ierr = DMNetworkIsGhostVertex(circuitdm,v,&ghostvtex);CHKERRQ(ierr);
 		if (ghostvtex) {
 			continue;
 		}
 
-		Result result;
-		EvaluateNode(circuitdm,v,arr,xarr,user,&result,false);
+		if(!user->inverse) {
+			Result result;
+			EvaluateNode(circuitdm,v,arr,xarr,user,&result,false);
+		}
+		else {
+			EvaluateNode(circuitdm,v,arr,xarr,user,&(resultVec[j]),false);
+		}
 
 		PetscInt nconnedges;
 		const PetscInt *connedges;
@@ -174,6 +200,48 @@ PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx)
 		}
 	}
 
+	if(user->inverse) {
+		PetscScalar R = 0;
+		PetscInt no = 0;
+
+		for(unsigned int j = resultVec.size()-user->outerCircle; j < resultVec.size(); j++) {
+			PetscScalar Rx;
+			int nextHop = j;
+			double Rtotal = 1;
+			do {
+				Rtotal *= resultVec[nextHop].Paccept;
+
+				TDMASchedule::Node& node = user->schedule->getNodes().at(nextHop);
+				nextHop = -1;
+				for(unsigned int pos = 0; pos < node.slots.size(); pos++) {
+					auto& slot = node.slots[pos];
+					if(slot.type == TDMASchedule::Type::TX) {
+						assert(nextHop == -1 || nextHop == slot.counterpart);
+						nextHop = slot.counterpart;
+					}
+				}
+				assert(nextHop != -1);
+			} while (nextHop != 0);
+			no++;
+			R += Rx;
+		}
+
+		R /= no;
+
+		PetscInt eStart,eEnd,offset;
+		ierr = DMNetworkGetVertexRange(circuitdm,&eStart,&eEnd);CHKERRQ(ierr);
+		ierr = DMNetworkGetVariableOffset(circuitdm,eEnd,&offset);CHKERRQ(ierr);
+
+		// in order to avoid zero pivot
+		if(R >= 0.9999) {
+			R += xarr[offset];
+		}
+		else {
+			R += 0.00001*xarr[offset];
+		}
+
+		farr[offset] = R-user->inverse;
+	}
 
 	ierr = VecRestoreArrayRead(localX,&xarr);CHKERRQ(ierr);
 	ierr = VecRestoreArray(localF,&farr);CHKERRQ(ierr);
@@ -194,6 +262,7 @@ PetscErrorCode SetInitialValues(DM circuitdm,Vec X,void *appctx)
 	PetscInt       eStart, eEnd;
 	Vec            localX;
 	PetscScalar    *xarr;
+	UserCtx       *user=(UserCtx*)appctx;
 	DMNetworkComponentGenericDataType *arr;
 
 	PetscFunctionBegin;
@@ -212,6 +281,14 @@ PetscErrorCode SetInitialValues(DM circuitdm,Vec X,void *appctx)
 		ierr = DMNetworkGetVariableOffset(circuitdm,e,&offset);CHKERRQ(ierr);
 
 		xarr[offset+VAR_PACTIVE] = 0.01;
+	}
+
+	if(user->inverse) {
+		// extra variable for inverse
+		PetscInt eStart,eEnd,offset;
+		ierr = DMNetworkGetVertexRange(circuitdm,&eStart,&eEnd);CHKERRQ(ierr);
+		ierr = DMNetworkGetVariableOffset(circuitdm,eEnd,&offset);CHKERRQ(ierr);
+		xarr[offset] = 10;
 	}
 
 	ierr = VecRestoreArray(localX,&xarr);CHKERRQ(ierr);

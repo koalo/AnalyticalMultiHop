@@ -49,7 +49,9 @@ enum {
 
 typedef struct {
 	PetscInt  a;
-	PetscInt     outerCircle;
+	PetscInt      outerCircle;
+	PetscScalar   inverse;
+	TDMASchedule* schedule;
 } UserCtx;
 
 typedef struct {

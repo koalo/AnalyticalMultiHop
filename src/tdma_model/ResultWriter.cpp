@@ -31,7 +31,7 @@ using namespace boost;
 ResultWriter::ResultWriter() {
 }
 
-PetscErrorCode ResultWriter::store(Vec& X, DM& circuitdm, UserCtx *user, TDMASchedule& schedule, Experiment& experiment)
+PetscErrorCode ResultWriter::store(Vec& X, DM& circuitdm, UserCtx *user, Experiment& experiment)
 {
 	const PetscScalar *xarr;
 	PetscErrorCode ierr;
@@ -76,7 +76,7 @@ PetscErrorCode ResultWriter::store(Vec& X, DM& circuitdm, UserCtx *user, TDMASch
 				Dtotal += delayVec[nextHop];
 				hops++;
 
-				TDMASchedule::Node& node = schedule.getNodes().at(nextHop);
+				TDMASchedule::Node& node = user->schedule->getNodes().at(nextHop);
 				nextHop = -1;
 				for(unsigned int pos = 0; pos < node.slots.size(); pos++) {
 					auto& slot = node.slots[pos];

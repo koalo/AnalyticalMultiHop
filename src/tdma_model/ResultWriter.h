@@ -33,7 +33,7 @@ class ResultWriter {
 public:
 	ResultWriter();
 
-	PetscErrorCode store(Vec& X, DM& circuitdm, UserCtx *user, TDMASchedule& schedule, Experiment& experiment);
+	PetscErrorCode store(Vec& X, DM& circuitdm, UserCtx *user, Experiment& experiment);
 
 	void write(const std::string& filename);
 
