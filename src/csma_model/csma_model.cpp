@@ -354,10 +354,6 @@ int main(int argc, char** argv)
 	ierr = DMCreateGlobalVector(circuitdm,&X);CHKERRQ(ierr);
 	ierr = VecDuplicate(X,&F);CHKERRQ(ierr);
 
-	Mat J;
-	ierr = DMCreateMatrix(circuitdm,&J);CHKERRQ(ierr);
-	ierr = MatSetOption(J,MAT_NEW_NONZERO_ALLOCATION_ERR,PETSC_FALSE);CHKERRQ(ierr);
-
 	ierr = SetInitialValues(circuitdm,X,&user);CHKERRQ(ierr);
 
 	SNES snes;
@@ -366,6 +362,11 @@ int main(int argc, char** argv)
 	ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
 	ierr = SNESSetDM(snes,circuitdm);CHKERRQ(ierr);
 	ierr = SNESSetFunction(snes,F,FormFunction,&user);CHKERRQ(ierr);
+
+	Mat Amat;
+       	Mat Pmat;
+	ierr = SNESGetJacobian(snes,&Amat,&Pmat,NULL,NULL);
+	ierr = SNESSetJacobian(snes,Amat,Pmat,SNESComputeJacobianDefault,&user);CHKERRQ(ierr); // use finite differences
 	ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
 
 	ierr = SNESSolve(snes,NULL,X);CHKERRQ(ierr);
@@ -381,7 +382,6 @@ int main(int argc, char** argv)
 
 	ierr = VecDestroy(&X);CHKERRQ(ierr);
 	ierr = VecDestroy(&F);CHKERRQ(ierr);
-	ierr = MatDestroy(&J);CHKERRQ(ierr);
 
 	ierr = SNESDestroy(&snes);CHKERRQ(ierr);
 	ierr = DMDestroy(&circuitdm);CHKERRQ(ierr);
