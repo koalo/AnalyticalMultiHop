@@ -236,13 +236,17 @@ int main(int argc, char** argv)
 		RelationSet relationSet = experiment.getRelations();
 		int relationsCount = relationSet.getRelationsCount();
 		numEdges = relationsCount;
+		if(user.inverse) {
+			// edge from every link to the node handling the inverse variable
+			numEdges += route.getLinkCount();
+		}
 
 		// relations for storing mainly the type
 		ierr = PetscMalloc1(relationsCount,&relations);CHKERRQ(ierr);
 		
 		// edges for storing the relation itself
 		// *2 for both vertices of an edge
-		ierr = PetscMalloc1(2*relationsCount,&edges);CHKERRQ(ierr);
+		ierr = PetscMalloc1(2*numEdges,&edges);CHKERRQ(ierr);
 
 		int i = 0;
 		for(auto& rel : relationSet) {
@@ -256,6 +260,16 @@ int main(int argc, char** argv)
 			edges[2*i] = relations[i].affected;
 			edges[2*i+1] = relations[i].source;
 			i++;
+		}
+
+		assert(i == relationsCount);
+
+		if(user.inverse) {
+			PetscInt links = route.getLinkCount();
+			for(int i = 0; i < links; i++) {
+				edges[2*relationsCount+2*i] = links; // id of inverse variable node
+				edges[2*relationsCount+2*i+1] = i;
+			}
 		}
 	}
 
@@ -327,6 +341,11 @@ int main(int argc, char** argv)
 	}
 
 	ierr = DMNetworkGetEdgeRange(circuitdm,&eStart,&eEnd);CHKERRQ(ierr);
+	if(user.inverse) {
+		Route& route = experiment.getRoute();
+		eEnd -= route.getLinkCount();
+	}
+
 	for (i = eStart; i < eEnd; i++) {
 		ierr = DMNetworkAddComponent(circuitdm,i,componentkey[1],
 				&relations[i-eStart]);CHKERRQ(ierr);
@@ -362,11 +381,6 @@ int main(int argc, char** argv)
 	ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
 	ierr = SNESSetDM(snes,circuitdm);CHKERRQ(ierr);
 	ierr = SNESSetFunction(snes,F,FormFunction,&user);CHKERRQ(ierr);
-
-	Mat Amat;
-       	Mat Pmat;
-	ierr = SNESGetJacobian(snes,&Amat,&Pmat,NULL,NULL);
-	ierr = SNESSetJacobian(snes,Amat,Pmat,SNESComputeJacobianDefault,&user);CHKERRQ(ierr); // use finite differences
 	ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
 
 	ierr = SNESSolve(snes,NULL,X);CHKERRQ(ierr);
