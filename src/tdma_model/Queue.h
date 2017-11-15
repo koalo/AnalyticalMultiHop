@@ -61,7 +61,7 @@ public:
 		this->A = matrix;
 	}
 
-	void create(TDMASchedule::Node& nodeSchedule, uint16_t K);
+	void create(TDMASchedule::Node& nodeSchedule, uint16_t K, bool debug = false);
 
 	PetscScalar getLambda() {
 		return lambda;

@@ -26,9 +26,11 @@
 
 using namespace std;
 
-void Queue::create(TDMASchedule::Node& nodeSchedule, uint16_t K) {
+void Queue::create(TDMASchedule::Node& nodeSchedule, uint16_t K, bool debug) {
 	this->K = K;
-	nodeSchedule.printSlots();
+	if(debug) {
+		nodeSchedule.printSlots();
+	}
 	schedule_length = 0;
 	nT = 0;
 	for(auto& slot : nodeSchedule.slots) {

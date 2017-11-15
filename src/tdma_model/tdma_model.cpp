@@ -24,14 +24,15 @@
 #include <boost/program_options.hpp>
 #include <boost/filesystem.hpp>
 #include <boost/format.hpp>
+#include <boost/property_tree/json_parser.hpp>
 
 #include <petsc.h>
-#include <petscdmnetwork.h>
 
 #include "Experiment.h"
 #include "Calculation.h"
 #include "ResultWriter.h"
 #include "Queue.h"
+#include "Route.h"
 
 using namespace std;
 using namespace boost::filesystem;
@@ -39,24 +40,229 @@ using namespace boost::system;
 
 static char help[] = "Run as ./tdma_model --experiment <filename>\n";
 
+class Calculation {
+public:
+	Calculation(Experiment& experiment)
+        : experiment(experiment) {
+	}
+
+	PetscErrorCode calculate() {
+		PetscErrorCode ierr;
+		PetscReal freqUp = 1/experiment.getParameter<double>("intervalUp"); // Hz
+		freqUp /= 1000000; // uHz
+		int slotDuration = experiment.getIntermediate<int>("slotDuration_us");
+
+		/* Build data structures */
+		TDMASchedule& schedule = experiment.getTDMASchedule();
+		visited.clear();
+		visited.resize(schedule.getNodeCount(), false);
+		calculated.clear();
+		calculated.resize(schedule.getNodeCount(), false);
+		pendingVisits.clear();
+		pendingVisits.push_back(0);
+		pendingCalculations.clear();
+		Pactive.clear();
+		Pactive.resize(schedule.getNodeCount(),vector<PetscScalar>(schedule.getNodes()[0].slots.size()));
+		results.clear();
+		results.resize(schedule.getNodeCount());
+		delays.clear();
+		delays.resize(schedule.getNodeCount());
+		qmeans.clear();
+		qmeans.resize(schedule.getNodeCount());
+
+		/* Run */
+		// forward visits
+		while(!pendingVisits.empty()) {
+			int id = pendingVisits.back();
+			pendingVisits.pop_back();
+			forward(id,experiment.getRoute());
+		}
+
+		// calculate and backtrack
+		while(!pendingCalculations.empty()) {
+			int id = pendingCalculations.back();
+			assert(visited[id] == true);
+			assert(calculated[id] == false);
+			pendingCalculations.pop_back();
+
+			// upstream
+			PetscScalar packet_generation = freqUp*slotDuration;
+			// TODO no support for downstream for TDMA yet
+
+			int K = experiment.getParameter<int>("K");
+			ierr = calculateNode(id, K, packet_generation, schedule.getNodes()[id], &(results[id]), &(delays[id]),&(qmeans[id])); CHKERRQ(ierr);
+			delays[id] *= slotDuration / 1000000.0; // slotDuration in us
+			
+			calculated[id] = true;
+			
+			if(id == 0) {
+				assert(pendingCalculations.empty());
+			}
+			else {
+				int p = experiment.getRoute().getPredecessor(id);
+				backtrack(p,experiment.getRoute());
+			}
+		}
+
+		PetscFunctionReturn(0);
+	}
+
+	void write_results(const std::string& filename) {
+		boost::property_tree::ptree resultPtree;
+		for(unsigned int j = 0; j < results.size(); j++) {
+			Result& result = results[j];
+			boost::property_tree::ptree rtree;
+			stringstream strstr;
+
+			rtree.put("Paccept",result.Paccept);
+			rtree.put("Qmean",qmeans[j]);
+
+			// Calculate path reliability and delay
+			if(j != 0) {
+				int nextHop = j;
+				double Rtotal = 1;
+				double Dtotal = 0;
+				int hops = 0;
+				int firstHop = -1;
+				do {
+					Rtotal *= results[nextHop].Paccept;
+					Dtotal += delays[nextHop];
+					hops++;
+
+					TDMASchedule::Node& node = experiment.getTDMASchedule().getNodes().at(nextHop);
+					nextHop = -1;
+					for(unsigned int pos = 0; pos < node.slots.size(); pos++) {
+						auto& slot = node.slots[pos];
+						if(slot.type == TDMASchedule::Type::TX) {
+							assert(nextHop == -1 || nextHop == slot.counterpart);
+							nextHop = slot.counterpart;
+						}
+					}
+					if(firstHop == -1) {
+						firstHop = nextHop;
+					}
+					assert(nextHop != -1);
+				} while (nextHop != 0);
+
+				rtree.put("Rtotal",Rtotal);
+				rtree.put("D",delays[j]);
+				rtree.put("Dtotal",Dtotal);
+				rtree.put("hops",hops);
+				rtree.put("perHopDelay",Dtotal/hops);
+				rtree.put("firstHop",firstHop);
+			}
+
+			// Fin
+			strstr.str("");
+			strstr << j;
+			resultPtree.add_child(strstr.str(),rtree);
+		}
+
+		boost::property_tree::json_parser::write_json(filename,resultPtree);
+	}
+
+private:
+	void forward(int id, Route& route) {
+		assert(visited[id] == false);
+		assert(calculated[id] == false);
+		visited[id] = true;
+		
+		// push all children
+		bool childrenFound = false;
+		for(auto n = route.getAdjacentVertices(id); n.first != n.second; n.first++) {
+			const auto& c = *(n.first);
+			bool incoming = route.getPredecessor(c) == id;
+			if(incoming) {
+				// is a child
+				childrenFound = true;
+				assert(visited[c] == false);
+				assert(calculated[c] == false);
+				pendingVisits.push_back(c);
+			}
+		}
+
+		if(!childrenFound) {
+			// calculation can be executed
+			pendingCalculations.push_back(id);
+		}
+	}
+
+	void backtrack(int id, Route& route) {
+		assert(visited[id] == true);
+		assert(calculated[id] == false);
+
+		// check if all children were calculated
+		for(auto n = route.getAdjacentVertices(id); n.first != n.second; n.first++) {
+			const auto& c = *(n.first);
+			bool incoming = route.getPredecessor(c) == id;
+			if(incoming) {
+				// is a child
+				if(!calculated[c]) {
+					return;
+				}
+			}
+		}
+
+		// all finished, calculation can be executed
+		pendingCalculations.push_back(id);
+	}
+
+	PetscErrorCode calculateNode(int id, int K, PetscScalar packet_generation, TDMASchedule::Node& node_schedule, Result *r, PetscScalar* delay, PetscScalar* Qmean)
+	{
+		PetscErrorCode ierr;
+		Queue queue;
+		queue.create(node_schedule,K);
+
+		for(unsigned int pos = 0; pos < node_schedule.slots.size(); pos++) {
+			auto& slot = node_schedule.slots[pos];
+			if(slot.type == TDMASchedule::Type::RX) {
+				queue.setPrecv(pos, Pactive[slot.counterpart][pos]);
+			}
+			else {
+				queue.setPrecv(pos, 0);
+			}
+		}
+
+		if(id > 0) {
+			queue.setLambda(packet_generation);
+			ierr = queue.calculate(&r->Paccept,delay); CHKERRQ(ierr);
+		}
+		else {
+			queue.setLambda(0);
+			r->Paccept = 1; // the sink does not need to queue
+			if(delay) {
+				*delay = 0;
+			}
+		}
+
+		if(Qmean) {
+			*Qmean = queue.getQmean();
+		}
+
+		for(unsigned int pos = 0; pos < node_schedule.slots.size(); pos++) {
+			auto& slot = node_schedule.slots[pos];
+			if(slot.type == TDMASchedule::Type::TX) {
+				Pactive[id][pos] = queue.getPtx(pos);
+			}
+		}
+
+		PetscFunctionReturn(0);
+	}
+
+	Experiment& experiment;
+	vector<bool> visited;
+	vector<bool> calculated;
+	vector<int> pendingVisits;
+	vector<int> pendingCalculations;
+	vector<vector<PetscScalar>> Pactive;
+	vector<Result> results;
+	vector<PetscScalar> delays;
+	vector<PetscScalar> qmeans;
+};
+
 int main(int argc, char** argv)
 {
-	PetscErrorCode       ierr;
-	UserCtx user;
-	bool debug = true;
-
-	NODEDATA nodes;
-	SLOTDATA slots;
-	int                  *edges = NULL;
-
-	PetscInt             i;  
-	DM                   circuitdm;
-	PetscInt             componentkey[2];
-	PetscLogStage        stage1,stage2;
-	PetscInt             size;
-
-	PetscInt numVertices = 0;
-	PetscInt numEdges = 0;
+	PetscErrorCode ierr;
 
 	Experiment experiment;
 	char experiment_file[PETSC_MAX_PATH_LEN];
@@ -64,224 +270,28 @@ int main(int argc, char** argv)
 	/* Initialize */
 	PetscInitialize(&argc,&argv,NULL,help);
 
-	PetscMPIInt rank;
-	ierr = MPI_Comm_rank(PETSC_COMM_WORLD,&rank);CHKERRQ(ierr);
+	/* Read data */
+	PetscBool found;
+	ierr = PetscOptionsGetString(PETSC_NULL,NULL,"--experiment",
+			experiment_file,PETSC_MAX_PATH_LEN-1,&found);CHKERRQ(ierr);
 
-	/* Create an empty circuit object */
-	ierr = DMNetworkCreate(PETSC_COMM_WORLD,&circuitdm);CHKERRQ(ierr);
-
-	/* Register the components in the circuit */
-	ierr = DMNetworkRegisterComponent(circuitdm,"linkstruct",
-			sizeof(struct _p_NODEDATA),&componentkey[0]);CHKERRQ(ierr);
-	ierr = DMNetworkRegisterComponent(circuitdm,"slotsstruct",
-			sizeof(struct _p_SLOTDATA),&componentkey[1]);CHKERRQ(ierr);
-
-	ierr = PetscLogStageRegister("Read Data",&stage1);CHKERRQ(ierr);
-	PetscLogStagePush(stage1);
-
-	/* READ THE DATA */
-	if (!rank) {
-		/* Only rank 0 reads the data */
-
-		/* Read data */
-		PetscBool found;
-		ierr = PetscOptionsGetString(PETSC_NULL,NULL,"--experiment",
-				experiment_file,PETSC_MAX_PATH_LEN-1,&found);CHKERRQ(ierr);
-
-		if(!found) {
-			std::cout << "No experiment file given" << std::endl;
-			std::cout << help << std::endl;
-			return 1;
-		}
-
-		experiment.read(experiment_file);
-
-		if(!experiment.getTDMASchedule().isCalculated()) {
-			std::cout << "No TDMA Schedule generated" << std::endl;
-			std::cout << help << std::endl;
-			return 1;
-		}
-
-		user.outerCircle = experiment.getIntermediate<int>("nodesOnOuterCircle");
-		user.inverse = experiment.getParameter<double>("inverse");
-
-		PetscReal freqUp = 1/experiment.getParameter<double>("intervalUp"); // Hz
-		freqUp /= 1000000; // uHz
-
-		PetscReal freqDown = 1/experiment.getParameter<double>("intervalDown"); // Hz
-		freqDown /= 1000000; // uHz
-
-
-		/* Read nodes */
-		ierr = PetscMalloc1(experiment.getRoute().getNodeCount(), 
-				&nodes);CHKERRQ(ierr);
-
-		TDMASchedule& schedule = experiment.getTDMASchedule();
-		numVertices = schedule.getNodeCount();
-		cout << numVertices << endl;
-		for(unsigned int i = 0; i < schedule.getNodeCount(); i++) {
-			nodes[i].id = i;
-
-			int slotDuration = experiment.getIntermediate<int>("slotDuration_us");
-
-			// upstream
-			if(i > 0) {
-				nodes[i].packet_generation = freqUp*slotDuration;
-			}
-			else {
-				nodes[i].packet_generation = 0;
-			}
-
-			// TODO no support for downstream for TDMA yet
-			
-			new (&nodes[i].queue) Queue(); // call constructor
-			int K = experiment.getParameter<int>("K");
-			nodes[i].queue.create(schedule.getNodes()[i],K);
-		}
-
-		/* Read slots */
-		int slotsCount = schedule.getTotalTXSlots();
-		numEdges = slotsCount;
-
-		// slots for storing mainly the type
-		ierr = PetscMalloc1(slotsCount,&slots);CHKERRQ(ierr);
-		
-		// edges for storing the relation itself
-		// *2 for both vertices of an edge
-		ierr = PetscMalloc1(2*slotsCount,&edges);CHKERRQ(ierr);
-
-		cout << schedule.getNodes()[0].slots.size() << endl;
-
-		int i = 0;
-		for(unsigned int n = 0; n < schedule.getNodeCount(); n++) {
-			TDMASchedule::Node& node = schedule.getNodes().at(n);
-			nodes[n].tx_slots = 0;
-			for(unsigned int pos = 0; pos < node.slots.size(); pos++) {
-				auto& slot = node.slots[pos];
-				if(slot.type == TDMASchedule::Type::TX) {
-					slots[i].pos = pos;
-					slots[i].Pactive = 0;
-
-					edges[2*i] = n;
-					edges[2*i+1] = slot.counterpart;
-					i++;
-
-					nodes[n].tx_slots++;
-				}
-			}
-		}
+	if(!found) {
+		std::cout << "No experiment file given" << std::endl;
+		std::cout << help << std::endl;
+		return 1;
 	}
 
-	user.schedule = &experiment.getTDMASchedule();
+	experiment.read(experiment_file);
 
-	if(debug) {
-		cout << "Nodes:" << endl;
-		for(int i = 0; i < numVertices; i++) {
-			cout << i+1 << endl;
-  			cout << nodes[i].packet_generation << endl;
-			cout << endl;
-		}
-		cout << endl;
-
-		cout << "Edges:" << endl;
-		for(int i = 0; i < numEdges; i++) {
-			cout << edges[2*i] << " " << edges[2*i+1] << endl;
-		}
-		cout << endl;
+	if(!experiment.getTDMASchedule().isCalculated()) {
+		std::cout << "No TDMA Schedule generated" << std::endl;
+		std::cout << help << std::endl;
+		return 1;
 	}
 
-	PetscLogStagePop();
-	MPI_Barrier(PETSC_COMM_WORLD);
-
-	ierr = PetscLogStageRegister("Create circuit",&stage2);CHKERRQ(ierr);
-	PetscLogStagePush(stage2);
-
-	/* Set number of nodes/edges */
-	ierr = DMNetworkSetSizes(circuitdm,numVertices,numEdges,
-			PETSC_DETERMINE,PETSC_DETERMINE);CHKERRQ(ierr);
-
-	/* Add edge connectivity */
-	ierr = DMNetworkSetEdgeList(circuitdm,edges);CHKERRQ(ierr);
-
-	/* Set up the circuit layout */
-	ierr = DMNetworkLayoutSetUp(circuitdm);CHKERRQ(ierr);
-
-	if (!rank) {
-		ierr = PetscFree(edges);CHKERRQ(ierr);
-	}
-
-	/* Add circuit components */
-	PetscInt eStart, eEnd, vStart, vEnd;
-
-	ierr = DMNetworkGetVertexRange(circuitdm,&vStart,&vEnd);CHKERRQ(ierr);
-
-	for (i = vStart; i < vEnd; i++) {
-		ierr = DMNetworkAddComponent(circuitdm,i,componentkey[0],
-				&nodes[i-vStart]);CHKERRQ(ierr);
-	}
-
-	ierr = DMNetworkGetEdgeRange(circuitdm,&eStart,&eEnd);CHKERRQ(ierr);
-	for (i = eStart; i < eEnd; i++) {
-		ierr = DMNetworkAddComponent(circuitdm,i,componentkey[1],
-				&slots[i-eStart]);CHKERRQ(ierr);
-
-		/* Add number of variables */
-		ierr = DMNetworkAddNumVariables(circuitdm,i,VAR_NVARS);CHKERRQ(ierr);
-	}
-
-	if(user.inverse) {
-		/* Add additional variable */
-		ierr = DMNetworkAddNumVariables(circuitdm,eEnd,1);CHKERRQ(ierr);
-	}
-
-	/* Set up DM for use */
-	ierr = DMSetUp(circuitdm);CHKERRQ(ierr);
-
-	if (!rank) {
-		/* PETSc memcpys the data within DMSetUp. */
-	        /* Therefore we can free the data here. */
-		ierr = PetscFree(nodes);CHKERRQ(ierr);
-		ierr = PetscFree(slots);CHKERRQ(ierr);
-	}
-
-	ierr = MPI_Comm_size(PETSC_COMM_WORLD,&size);CHKERRQ(ierr);
-	if (size > 1) {
-		/* Circuit partitioning and distribution of data */
-		ierr = DMNetworkDistribute(&circuitdm,0);CHKERRQ(ierr);
-	}
-
-	PetscLogStagePop();
-
-	Vec X,F;
-	ierr = DMCreateGlobalVector(circuitdm,&X);CHKERRQ(ierr);
-	ierr = VecDuplicate(X,&F);CHKERRQ(ierr);
-
-	ierr = SetInitialValues(circuitdm,X,&user);CHKERRQ(ierr);
-
-	SNES snes;
-
-	/* HOOK UP SOLVER */
-	ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
-	ierr = SNESSetDM(snes,circuitdm);CHKERRQ(ierr);
-	ierr = SNESSetFunction(snes,F,FormFunction,&user);CHKERRQ(ierr);
-	ierr = SNESSetType(snes, SNESNRICHARDSON); // faster for our problem, especially by preventing the approximation of the Jacobian
-	ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
-
-	ierr = SNESSolve(snes,NULL,X);CHKERRQ(ierr);
-
-	/* Print out result */
-	ResultWriter resultWriter;
-	resultWriter.store(X,circuitdm,&user,experiment);
-
-	if(!rank) {
-		resultWriter.write(experiment.getResultFileName(experiment_file));
-	}
-
-	ierr = VecDestroy(&X);CHKERRQ(ierr);
-	ierr = VecDestroy(&F);CHKERRQ(ierr);
-
-	ierr = SNESDestroy(&snes);CHKERRQ(ierr);
-	ierr = DMDestroy(&circuitdm);CHKERRQ(ierr);
+	Calculation calculator(experiment);
+	ierr = calculator.calculate(); CHKERRQ(ierr);
+	calculator.write_results(experiment.getResultFileName(experiment_file));
 
 	PetscFinalize();
 	return 0;
