@@ -29,8 +29,6 @@
 #include <petsc.h>
 
 #include "Experiment.h"
-#include "Calculation.h"
-#include "ResultWriter.h"
 #include "Queue.h"
 #include "Route.h"
 
@@ -64,12 +62,6 @@ public:
 		Pactive.resize(schedule.getNodeCount(),vector<PetscScalar>(schedule.getNodes()[0].slots.size()));
 		results.clear();
 		results.resize(schedule.getNodeCount());
-		delays.clear();
-		delays.resize(schedule.getNodeCount());
-		qmeans.clear();
-		qmeans.resize(schedule.getNodeCount());
-		rtotals.clear();
-		rtotals.resize(schedule.getNodeCount());
 
 		/* Run */
 		// forward visits
@@ -88,11 +80,11 @@ public:
 
 			// upstream
 			PetscScalar packet_generation = freqUp*slotDuration;
-			// TODO no support for downstream for TDMA yet
+			// no support for downstream for TDMA yet
 
 			int K = experiment.getParameter<int>("K");
-			ierr = calculateNode(id, K, packet_generation, schedule.getNodes()[id], &(results[id]), &(delays[id]),&(qmeans[id])); CHKERRQ(ierr);
-			delays[id] *= slotDuration / 1000000.0; // slotDuration in us
+			ierr = calculateNode(id, K, packet_generation, schedule.getNodes()[id], &(results[id])); CHKERRQ(ierr);
+			results[id].delay *= slotDuration / 1000000.0; // slotDuration in us
 			
 			calculated[id] = true;
 			
@@ -113,7 +105,7 @@ public:
 			stringstream strstr;
 
 			rtree.put("Paccept",result.Paccept);
-			rtree.put("Qmean",qmeans[j]);
+			rtree.put("Qmean",result.qmean);
 
 			// Calculate path reliability and delay
 			if(j != 0) {
@@ -124,7 +116,7 @@ public:
 				int firstHop = -1;
 				do {
 					Rtotal *= results[nextHop].Paccept;
-					Dtotal += delays[nextHop];
+					Dtotal += results[nextHop].delay;
 					hops++;
 
 					TDMASchedule::Node& node = experiment.getTDMASchedule().getNodes().at(nextHop);
@@ -142,14 +134,18 @@ public:
 					assert(nextHop != -1);
 				} while (nextHop != 0);
 
-				rtotals[j] = Rtotal;
+				results[j].Rtotal = Rtotal;
 
 				rtree.put("Rtotal",Rtotal);
-				rtree.put("D",delays[j]);
+				rtree.put("D",results[j].delay);
 				rtree.put("Dtotal",Dtotal);
 				rtree.put("hops",hops);
 				rtree.put("perHopDelay",Dtotal/hops);
 				rtree.put("firstHop",firstHop);
+
+				PetscScalar freqGen = result.packet_generation/slotDuration; // uHz
+				freqGen *= 1000000; // Hz
+				rtree.put("intervalGen",1/freqGen);
 			}
 
 			// Fin
@@ -170,7 +166,7 @@ public:
 
 		PetscScalar sum = 0;
 		for(unsigned int j = results.size()-outerCircle; j < results.size(); j++) {
-			sum += rtotals[j];
+			sum += results[j].Rtotal;
 		}
 		return sum/outerCircle;
 	}
@@ -181,6 +177,14 @@ public:
 	}
 
 private:
+	typedef struct {
+		PetscScalar Paccept;
+		PetscScalar packet_generation;
+		PetscScalar delay;
+		PetscScalar qmean;
+		PetscScalar Rtotal;
+	} Result;
+
 	void forward(int id, Route& route) {
 		assert(visited[id] == false);
 		assert(calculated[id] == false);
@@ -226,7 +230,7 @@ private:
 		pendingCalculations.push_back(id);
 	}
 
-	PetscErrorCode calculateNode(int id, int K, PetscScalar packet_generation, TDMASchedule::Node& node_schedule, Result *r, PetscScalar* delay, PetscScalar* Qmean)
+	PetscErrorCode calculateNode(int id, int K, PetscScalar packet_generation, TDMASchedule::Node& node_schedule, Result *r)
 	{
 		PetscErrorCode ierr;
 		Queue queue;
@@ -244,19 +248,17 @@ private:
 
 		if(id > 0) {
 			queue.setLambda(packet_generation);
-			ierr = queue.calculate(&r->Paccept,delay); CHKERRQ(ierr);
+			r->packet_generation = packet_generation;
+			ierr = queue.calculate(&r->Paccept,&r->delay); CHKERRQ(ierr);
 		}
 		else {
 			queue.setLambda(0);
+			r->packet_generation = 0;
 			r->Paccept = 1; // the sink does not need to queue
-			if(delay) {
-				*delay = 0;
-			}
+			r->delay = 0;
 		}
 
-		if(Qmean) {
-			*Qmean = queue.getQmean();
-		}
+		r->qmean = queue.getQmean();
 
 		for(unsigned int pos = 0; pos < node_schedule.slots.size(); pos++) {
 			auto& slot = node_schedule.slots[pos];
@@ -275,9 +277,6 @@ private:
 	vector<int> pendingCalculations;
 	vector<vector<PetscScalar>> Pactive;
 	vector<Result> results;
-	vector<PetscScalar> delays;
-	vector<PetscScalar> qmeans;
-	vector<PetscScalar> rtotals;
 	PetscScalar inverse;
 	boost::property_tree::ptree resultPtree;
 };
@@ -362,7 +361,7 @@ int main(int argc, char** argv)
 		ierr = MatSetFromOptions(J);CHKERRQ(ierr);
 		ierr = MatSeqAIJSetPreallocation(J,3,NULL);CHKERRQ(ierr);
 		ierr = SNESSetFunction(snes,r,FormInverseFunction,&calculator);CHKERRQ(ierr);
-		ierr = SNESSetJacobian(snes,J,J,SNESComputeJacobianDefault,(void*)FormFunction);CHKERRQ(ierr);
+		ierr = SNESSetJacobian(snes,J,J,SNESComputeJacobianDefault,(void*)FormInverseFunction);CHKERRQ(ierr);
 		ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
 
 		// Calculate

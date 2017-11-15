@@ -6,7 +6,7 @@ LIBS		 = -lboost_program_options -lboost_system -lboost_filesystem -lboost_graph
 
 SRC_common = src/common/Route.cpp src/common/Experiment.cpp src/common/Relations.cpp src/common/Topology.cpp src/common/TDMASchedule.cpp
 SRC_csma_model = $(SRC_common) src/csma_model/csma_model.cpp src/csma_model/Calculation.cpp src/csma_model/RelationsGenerator.cpp src/csma_model/ResultWriter.cpp
-SRC_tdma_model = $(SRC_common) src/tdma_model/tdma_model.cpp src/tdma_model/Calculation.cpp src/tdma_model/ResultWriter.cpp src/tdma_model/Queue.cpp
+SRC_tdma_model = $(SRC_common) src/tdma_model/tdma_model.cpp src/tdma_model/Queue.cpp
 SRC_tdma_inverse = $(SRC_common) src/tdma_model/tdma_inverse.cpp src/tdma_model/Queue.cpp
 SRC_tdma_single = $(SRC_common) src/tdma_model/tdma_single.cpp src/tdma_model/Queue.cpp
 SRC_preprocessor = $(SRC_common) src/preprocessor/preprocessor.cpp src/preprocessor/TopologyGenerator.cpp src/preprocessor/ConnectionsGenerator.cpp src/preprocessor/RouteGenerator.cpp src/preprocessor/TDMAGenerator.cpp src/common/Connections.cpp
