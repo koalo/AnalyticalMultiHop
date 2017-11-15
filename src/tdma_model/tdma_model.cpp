@@ -44,12 +44,11 @@ class Calculation {
 public:
 	Calculation(Experiment& experiment)
         : experiment(experiment) {
+		inverse = experiment.getParameter<double>("inverse");
 	}
 
-	PetscErrorCode calculate() {
+	PetscErrorCode calculate(PetscScalar freqUp) {
 		PetscErrorCode ierr;
-		PetscReal freqUp = 1/experiment.getParameter<double>("intervalUp"); // Hz
-		freqUp /= 1000000; // uHz
 		int slotDuration = experiment.getIntermediate<int>("slotDuration_us");
 
 		/* Build data structures */
@@ -69,6 +68,8 @@ public:
 		delays.resize(schedule.getNodeCount());
 		qmeans.clear();
 		qmeans.resize(schedule.getNodeCount());
+		rtotals.clear();
+		rtotals.resize(schedule.getNodeCount());
 
 		/* Run */
 		// forward visits
@@ -104,11 +105,8 @@ public:
 			}
 		}
 
-		PetscFunctionReturn(0);
-	}
-
-	void write_results(const std::string& filename) {
-		boost::property_tree::ptree resultPtree;
+		// Evaluate results
+		resultPtree.clear();
 		for(unsigned int j = 0; j < results.size(); j++) {
 			Result& result = results[j];
 			boost::property_tree::ptree rtree;
@@ -144,6 +142,8 @@ public:
 					assert(nextHop != -1);
 				} while (nextHop != 0);
 
+				rtotals[j] = Rtotal;
+
 				rtree.put("Rtotal",Rtotal);
 				rtree.put("D",delays[j]);
 				rtree.put("Dtotal",Dtotal);
@@ -157,6 +157,25 @@ public:
 			strstr << j;
 			resultPtree.add_child(strstr.str(),rtree);
 		}
+
+		PetscFunctionReturn(0);
+	}
+
+	PetscScalar getInverse() {
+		return inverse;
+	}
+
+	PetscScalar reliabilityForOuterCircle() {
+		int outerCircle = experiment.getIntermediate<int>("nodesOnOuterCircle");
+
+		PetscScalar sum = 0;
+		for(unsigned int j = results.size()-outerCircle; j < results.size(); j++) {
+			sum += rtotals[j];
+		}
+		return sum/outerCircle;
+	}
+
+	void write_results(const std::string& filename) {
 
 		boost::property_tree::json_parser::write_json(filename,resultPtree);
 	}
@@ -258,7 +277,35 @@ private:
 	vector<Result> results;
 	vector<PetscScalar> delays;
 	vector<PetscScalar> qmeans;
+	vector<PetscScalar> rtotals;
+	PetscScalar inverse;
+	boost::property_tree::ptree resultPtree;
 };
+
+PetscScalar sigInv(PetscScalar y) {
+	return log(y/(1-y));
+}
+
+PetscErrorCode FormInverseFunction(SNES snes,Vec x,Vec f,void *ctx)
+{
+	Calculation* calculator = (Calculation*)ctx;
+	const PetscScalar *xx;
+	PetscScalar       *ff;
+	PetscErrorCode    ierr;
+
+	ierr = VecGetArrayRead(x,&xx);CHKERRQ(ierr);
+	ierr = VecGetArray(f,&ff);CHKERRQ(ierr);
+
+	PetscScalar freqUp = exp(xx[0]);
+
+	ierr = calculator->calculate(freqUp); CHKERRQ(ierr);
+
+	ff[0] = sigInv(calculator->getInverse()) - sigInv(calculator->reliabilityForOuterCircle());
+
+	ierr = VecRestoreArrayRead(x,&xx);CHKERRQ(ierr);
+	ierr = VecRestoreArray(f,&ff);CHKERRQ(ierr);
+	PetscFunctionReturn(0);
+}
 
 int main(int argc, char** argv)
 {
@@ -289,8 +336,43 @@ int main(int argc, char** argv)
 		return 1;
 	}
 
+	PetscScalar freqUp = 1/experiment.getParameter<double>("intervalUp"); // Hz
+	freqUp /= 1000000; // uHz
+
 	Calculation calculator(experiment);
-	ierr = calculator.calculate(); CHKERRQ(ierr);
+	if(!calculator.getInverse()) {
+		ierr = calculator.calculate(freqUp); CHKERRQ(ierr);
+	}
+	else {
+		SNES snes;
+		Vec x,r;
+		Mat J;
+
+		// Create
+		ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
+		ierr = VecCreate(PETSC_COMM_WORLD,&x);CHKERRQ(ierr);
+		ierr = VecSetSizes(x,PETSC_DECIDE,1);CHKERRQ(ierr);
+		ierr = VecSetFromOptions(x);CHKERRQ(ierr);
+		ierr = VecDuplicate(x,&r);CHKERRQ(ierr);
+		ierr = MatCreate(PETSC_COMM_WORLD,&J);CHKERRQ(ierr);
+		ierr = MatSetSizes(J,PETSC_DECIDE,PETSC_DECIDE,1,1);CHKERRQ(ierr);
+
+		// Setup
+		ierr = VecSet(x,1);CHKERRQ(ierr); // initial guess
+		ierr = MatSetFromOptions(J);CHKERRQ(ierr);
+		ierr = MatSeqAIJSetPreallocation(J,3,NULL);CHKERRQ(ierr);
+		ierr = SNESSetFunction(snes,r,FormInverseFunction,&calculator);CHKERRQ(ierr);
+		ierr = SNESSetJacobian(snes,J,J,SNESComputeJacobianDefault,(void*)FormFunction);CHKERRQ(ierr);
+		ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
+
+		// Calculate
+		ierr = SNESSolve(snes,NULL,x);CHKERRQ(ierr);
+
+		// Release
+		ierr = VecDestroy(&x);CHKERRQ(ierr);
+		ierr = VecDestroy(&r);CHKERRQ(ierr);
+		ierr = SNESDestroy(&snes);CHKERRQ(ierr);
+	}
 	calculator.write_results(experiment.getResultFileName(experiment_file));
 
 	PetscFinalize();
