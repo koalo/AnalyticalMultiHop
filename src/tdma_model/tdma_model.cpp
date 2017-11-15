@@ -341,6 +341,7 @@ int main(int argc, char** argv)
 	Calculation calculator(experiment);
 	if(!calculator.getInverse()) {
 		ierr = calculator.calculate(freqUp); CHKERRQ(ierr);
+		calculator.write_results(experiment.getResultFileName(experiment_file));
 	}
 	else {
 		SNES snes;
@@ -367,12 +368,21 @@ int main(int argc, char** argv)
 		// Calculate
 		ierr = SNESSolve(snes,NULL,x);CHKERRQ(ierr);
 
+		// Check
+		SNESConvergedReason reason;
+		ierr = SNESGetConvergedReason(snes, &reason);CHKERRQ(ierr);
+		if(reason > 0) {
+			calculator.write_results(experiment.getResultFileName(experiment_file));
+		}
+		else {
+			cout << "No solution found! " << reason << endl;
+		}
+
 		// Release
 		ierr = VecDestroy(&x);CHKERRQ(ierr);
 		ierr = VecDestroy(&r);CHKERRQ(ierr);
 		ierr = SNESDestroy(&snes);CHKERRQ(ierr);
 	}
-	calculator.write_results(experiment.getResultFileName(experiment_file));
 
 	PetscFinalize();
 	return 0;
