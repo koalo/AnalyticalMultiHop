@@ -376,7 +376,7 @@ void TDMAGenerator::createOrchestraSBD(Experiment& experiment, Connections& conn
 	}
 
 	cout << "Nodes " << route.getNodeCount() << " " << maxslots << endl;
-	for(int n = 0; n < route.getNodeCount(); n++) {
+	for(int n = 1; n < route.getNodeCount(); n++) {
 		auto& node = schedule.getNodes()[n];
 		int slot = n+1;
 		auto parent = route.getPredecessor(n);

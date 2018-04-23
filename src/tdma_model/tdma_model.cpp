@@ -236,6 +236,8 @@ private:
 		Queue queue;
 		queue.create(node_schedule,K);
 
+		assert(node_schedule.slots.size() <= MAX_SCHEDULE_LENGTH);
+
 		for(unsigned int pos = 0; pos < node_schedule.slots.size(); pos++) {
 			auto& slot = node_schedule.slots[pos];
 			if(slot.type == TDMASchedule::Type::RX) {

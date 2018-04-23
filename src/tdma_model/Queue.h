@@ -32,8 +32,7 @@
 
 #include "TDMASchedule.h"
 
-//#define MAX_SCHEDULE_LENGTH 64
-#define MAX_SCHEDULE_LENGTH 128
+#define MAX_SCHEDULE_LENGTH 256
 #define MAX_K 30
 #define MAX_STATES (MAX_SCHEDULE_LENGTH*(MAX_K+1))
 

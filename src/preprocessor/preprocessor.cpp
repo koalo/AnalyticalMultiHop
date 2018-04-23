@@ -114,7 +114,7 @@ int main(int argc, char** argv)
 		else if(mac == "ORCHESTRA") {
 			TDMAGenerator::createOrchestraSBD(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule());
 		}
-		else if(mac == "CSMA") {
+		else if(mac == "CSMA" || mac == "OWN_TSCH") {
 			// do nothing
 		}
 		else {
