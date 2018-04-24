@@ -14,12 +14,12 @@ of the 11th International Conference on the Design of Reliable Communication Net
 
 ## Installation
 
-The program is based on the <a href="https://www.mcs.anl.gov/petsc/">Portable, Extensible Toolkit for Scientific Computation (PETSc)</a>. So the first step is to install it according to this <a href="https://www.mcs.anl.gov/petsc/documentation/installation.html">documentation</a>. For Linux with APT and Bash it basically boils down to:
+The program is based on the <a href="https://www.mcs.anl.gov/petsc/">Portable, Extensible Toolkit for Scientific Computation (PETSc)</a> and requires version 3.8.4. So the first step is to install it according to this <a href="https://www.mcs.anl.gov/petsc/documentation/installation.html">documentation</a>. For Linux with APT and Bash it basically boils down to:
 
     sudo apt-get update
     sudo apt-get install git build-essential gcc g++ gfortran python
     cd ~/
-    git clone -b maint https://bitbucket.org/petsc/petsc petsc
+    git clone https://github.com/koalo/petsc
     cd petsc
     echo "export PETSC_DIR=`pwd`" >> ~/.bashrc
     echo "export PETSC_ARCH=linux-gnu-c-debug" >> ~/.bashrc
