@@ -5,6 +5,7 @@ import os
 import json
 import subprocess
 from networkx.drawing.nx_agraph import write_dot
+import copy
 
 EXPERIMENT_FILENAME = 'experiment_%s.json'
 ROUTE_FILENAME = 'route.dot'
@@ -15,7 +16,7 @@ def execute(result_directory, mac='CSMA'):
     if mac not in ['CSMA','TDMA']:
         raise ValueError("Only csma and tdma allowed for the mac parameter")
 
-    subprocess.call(['./'+mac.lower()+'_model', '--experiment', os.path.join(result_directory,EXPERIMENT_FILENAME%mac)])
+    subprocess.check_call(['./'+mac.lower()+'_model', '--experiment', os.path.join(result_directory,EXPERIMENT_FILENAME%mac)])
 
     with open(os.path.join(result_directory,RESULT_FILENAME%mac)) as data_file:
             result = json.load(data_file)
@@ -152,6 +153,12 @@ class Experiment:
         # Set indicies
         DG = nx.relabel_nodes(DG, self.index_for_label)
 
+        # Remove pos attribute and write to result directory
+        DGwrite = copy.deepcopy(DG)
+        for n in DG.nodes():
+            del DG.node[n]['pos']
+        for n in DG.nodes().items():
+            print(n)
         write_dot(DG,os.path.join(result_directory,ROUTE_FILENAME))
 
         ########################
