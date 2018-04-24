@@ -81,7 +81,7 @@ class Experiment:
         return self.label_for_index[node_index]
 
     def get_parent(self,node):
-        return self.R.successors(node)[0]
+        return next(self.R.successors(node))
 
     def add_slot(self,node,slot_id,slot_type,counterpart,channel=0):
         s = self.schedule["nodes"][self.index_for_label[node]]["slots"][slot_id]
@@ -138,7 +138,7 @@ class Experiment:
 
         # Clean up
         for n in DG.node:
-            DG.node[n] = {}
+            DG.node[n].update({})
             #for a in DG.node[n]:
             #    del DG.node[n][a]
 
