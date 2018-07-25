@@ -378,13 +378,13 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGener
 
 #undef __FUNCT__
 #define __FUNCT__ "CalculatePathReliability"
-PetscErrorCode CalculatePathReliability(DM& circuitdm, DMNetworkComponentGenericDataType *arr, const PetscScalar *xarr, const PetscScalar *farr, PetscScalar& Rx, PetscInt v, PetscInt vStart)
+PetscErrorCode CalculatePathReliability(DM& circuitdm, DMNetworkComponentGenericDataType *arr, const PetscScalar *xarr, const PetscScalar *farr, PetscScalar& Rx, PetscInt v, PetscInt vStart, PetscInt nodes, bool upstream)
 {
 	PetscInt      offset;
 	PetscErrorCode ierr;
 	PetscBool   ghostvtex;
 	ierr = DMNetworkIsGhostVertex(circuitdm,v,&ghostvtex);CHKERRQ(ierr);
-	PetscInt to;
+	PetscInt next;
 	Rx = 1;
 
 	do {
@@ -397,10 +397,15 @@ PetscErrorCode CalculatePathReliability(DM& circuitdm, DMNetworkComponentGeneric
 		ierr = DMNetworkGetVariableOffset(circuitdm,v,&offset);CHKERRQ(ierr);
 		Rx *= xarr[offset+VAR_R]-farr[offset+VAR_R]; // gives result.Rel, see above
 
-		to = link->to;
-
-		v = to+vStart-1;
-	} while(to != 0);
+		if(upstream) {
+			next = link->to;
+			v = next+vStart-1;
+		}
+		else {
+			next = link->from;
+			v = nodes+next+vStart-1;
+		}
+	} while(next != 0);
 
 	PetscFunctionReturn(0);
 }
@@ -469,7 +474,7 @@ PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx)
 
 		for(int z = vz+1; z > vz+1-user->outerCircle; z--) {
 			PetscScalar Rx;
-			ierr = CalculatePathReliability(circuitdm,arr,xarr,farr,Rx,z,vStart);CHKERRQ(ierr);
+			ierr = CalculatePathReliability(circuitdm,arr,xarr,farr,Rx,z,vStart,(vEnd-vStart)/2);CHKERRQ(ierr);
 			no++;
 			R += Rx;
 		}

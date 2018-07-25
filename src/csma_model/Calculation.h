@@ -94,7 +94,7 @@ PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGenericDataT
 PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx);
 PetscErrorCode SetInitialValues(DM circuitdm,Vec X,void *appctx);
 PetscErrorCode FormatResult(Vec& X, DM& circuitdm, UserCtx *user);
-PetscErrorCode CalculatePathReliability(DM& circuitdm, DMNetworkComponentGenericDataType *arr, const PetscScalar *xarr, const PetscScalar *farr, PetscScalar& Rx, PetscInt v, PetscInt vStart);
+PetscErrorCode CalculatePathReliability(DM& circuitdm, DMNetworkComponentGenericDataType *arr, const PetscScalar *xarr, const PetscScalar *farr, PetscScalar& Rx, PetscInt v, PetscInt vStart, PetscInt nodes, bool upstream = true);
 
 #endif
 

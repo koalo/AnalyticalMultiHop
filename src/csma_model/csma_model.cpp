@@ -100,7 +100,7 @@ int main(int argc, char** argv)
 		user.outerCircle = experiment.getIntermediate<int>("nodesOnOuterCircle");
 
 		int bytesPerACK = 11;
-		user.m = experiment.getParameter<int>("MaxNumberOfBackoffs");
+		user.m = experiment.getParameter<int>("MaxNumberOfBackoffs"); // including the first unconditional one! So macMaxCSMABackoffs = MaxNumberOfBackoffs - 1
 		user.m0 = experiment.getParameter<int>("InitialBackoffExponent");
 		user.mb = experiment.getParameter<int>("MaxBackoffExponent");
 		user.n = experiment.getParameter<int>("MaxNumberOfRetransmissions");

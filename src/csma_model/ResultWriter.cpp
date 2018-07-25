@@ -94,11 +94,9 @@ PetscErrorCode ResultWriter::store(Vec& X, Vec& F, DM& circuitdm, UserCtx *user,
 
 
 		// Calculate path reliability
-		if(l.up) {
-			PetscScalar Rtotal;
-			ierr = CalculatePathReliability(circuitdm,arr,xarr,farr,Rtotal,v,vStart);CHKERRQ(ierr);
-			rtree.put("Rtotal",Rtotal);
-		}
+		PetscScalar Rtotal;
+		ierr = CalculatePathReliability(circuitdm,arr,xarr,farr,Rtotal,v,vStart,(vEnd-vStart)/2,l.up);CHKERRQ(ierr);
+		rtree.put("Rtotal",Rtotal);
 
 		// Calculate successful sending delay (does not consider betterRetrans!)
 		PetscScalar EDsl = 0;
