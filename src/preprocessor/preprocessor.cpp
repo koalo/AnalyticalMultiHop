@@ -96,7 +96,10 @@ int main(int argc, char** argv)
 		regex dsmeRgx("TAMC_DSME_SO_(.*)_MO_(.*)_CAPRED_(.*)");
 		smatch dsmeMatches;
 
-		int lSTarget = experiment.getParameter<int>("lSTarget");
+		int lSTarget = -1;
+		if(mac != "CSMA") {
+			lSTarget = experiment.getParameter<int>("lSTarget");
+		}
 		transform(mac.begin(), mac.end(), mac.begin(), ::toupper);
 		if(mac == "TAMC_TSCH") {
 			TDMAGenerator::createTA(experiment, experiment.getConnections(), experiment.getRoute(), experiment.getTDMASchedule(),lSTarget,true,true);

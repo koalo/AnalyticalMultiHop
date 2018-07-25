@@ -105,11 +105,16 @@ int main(int argc, char** argv)
 		user.mb = experiment.getParameter<int>("MaxBackoffExponent");
 		user.n = experiment.getParameter<int>("MaxNumberOfRetransmissions");
 
-		int broadcast = experiment.getParameter<int>("broadcast");
-		if(broadcast && user.n != 0) {
-			std::cout << "For Broadcasts, retransmissions are not possible" << std::endl;
-			std::cout << help << std::endl;
-			return 1;
+		int broadcast = 0;
+		try {
+			broadcast = experiment.getParameter<int>("broadcast");
+			if(broadcast && user.n != 0) {
+				std::cout << "For Broadcasts, retransmissions are not possible" << std::endl;
+				std::cout << help << std::endl;
+				return 1;
+			}
+		} catch(exception& e) {
+			// no broadcast
 		}
 
 		PetscScalar LinSym = 8.0*experiment.getParameter<int>("L")/4.0;
