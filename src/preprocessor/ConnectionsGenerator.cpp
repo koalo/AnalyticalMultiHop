@@ -28,7 +28,7 @@ using namespace std;
 void ConnectionsGenerator::create(Experiment& experiment, Topology& topology, Connections& connections)
 {
 	double Ptx = experiment.getParameter<double>("Ptx");
-	double Pn = experiment.getParameter<double>("Pdist");
+	double Pn = experiment.getParameter<double>("Pn");
 	double Pdist = experiment.getParameter<double>("Pdist");
 	int N = experiment.getParameter<int>("nodes");
 
