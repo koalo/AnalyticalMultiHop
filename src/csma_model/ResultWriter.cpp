@@ -73,6 +73,13 @@ PetscErrorCode ResultWriter::store(Vec& X, Vec& F, DM& circuitdm, UserCtx *user,
 		rtree.put("alpha",result.alpha);
 		rtree.put("Pcoll",result.Pcoll);
 		rtree.put("PnoACK",result.PnoACK);
+		rtree.put("queueAccept",result.queueAccept);
+#ifdef DELAY
+		rtree.put("EDsl",result.EDsl);
+		rtree.put("EDml",result.EDml);
+		rtree.put("EDnl",result.EDnl);
+#endif
+		rtree.put("cfdrop",result.cfdrop);
 
 		PetscScalar intervalGen = 1/((result.packet_generation/user->Sb)*1000000);
 		if(intervalGen > 999999999) {
@@ -128,7 +135,7 @@ PetscErrorCode ResultWriter::store(Vec& X, Vec& F, DM& circuitdm, UserCtx *user,
 			EDsl += PrCjC * EDslj;
 		}
 
-		delayVec[x] = EDsl*user->Sb/1000000.0; // Sb in us
+		delayVec[x] = EDsl*user->Sb/1000000.0; // Sb in s
 	}
 
 	x = 0;

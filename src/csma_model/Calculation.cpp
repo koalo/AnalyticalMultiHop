@@ -52,6 +52,38 @@ inline PetscScalar PU(PetscScalar a, PetscScalar b, PetscScalar c, PetscScalar d
 		- a*b*c*d - a*b*c*e - a*b*d*e - a*c*d*e - b*c*d*e + a*b*c*d*e;
 }
 
+PetscScalar WkSum(PetscInt i, UserCtx *user) {
+	PetscScalar result = 0;
+	for(PetscInt k = 0; k <= i; k++) {
+		PetscScalar Wk = 0;
+		if(k == 0) {
+			Wk = pow(2,user->m0);
+		}
+		else if(k <= (user->mb - user->m0)) {
+			Wk = pow(2,k+user->m0);
+		}
+		else {
+			Wk = pow(2,user->mb);
+		}
+		result += ((Wk-1)/2); 
+	}
+	return result;
+}
+
+PetscScalar EThSum(PetscInt j, UserCtx *user, PetscScalar alpha) {
+	PetscScalar result = 0;
+	for(PetscInt h = 0; h <= j; h++) {
+		PetscScalar Eth = user->TSCinSbs;
+		for(PetscInt i = 0; i <= user->m; i++) {
+			PetscScalar inner = i*user->TSCinSbs;
+			inner += WkSum(i,user);
+			Eth += (pow(alpha,i)*(1-alpha)/(1-pow(alpha,user->m+1))) * inner;
+		}
+		result += Eth;
+	}
+	return result;
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "EvaluateLink"
 inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGenericDataType *arr, const PetscScalar *xarr, UserCtx *user, Result *r, bool debug)
@@ -273,12 +305,59 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGener
 		}
 	}
 
+#ifdef DELAY
+	// Calculate delays (does not consider betterRetrans!)
+	PetscScalar EDsl = 0;
+	PetscScalar EDml = 0;
+	for(PetscInt j = 0; j <= user->n; j++) {
+		PetscScalar PrCjC = (1-Pcoll*(1-pow(alpha,user->m+1))) * pow(Pcoll,j) * pow((1-pow(alpha,user->m)),j);
+		PrCjC = PrCjC / (1 - pow(Pcoll*(1-pow(alpha,user->m+1)),user->n+1));
+		PetscScalar ethsum = EThSum(j,user,alpha);
+		PetscScalar EDslj = user->Ls + j*user->Lc + ethsum;
+		PetscScalar EDmlj = ethsum + (user->m)*user->TSCinSbs + WkSum(m,user);
+		EDsl += PrCjC * EDslj;
+		EDml += PrCjC * EDmlj;
+	}
+
+	PetscScalar EDnl = user->Lc + EThSum(user->n,user,alpha);
+#endif
+
+	// For whole node
+	PetscScalar queueAccept = 1;
+#ifdef DELAY
+	// Queue drops
+	queueAccept = 1/(EDsl*(link->node_packet_generation + inflow));
+	if(queueAccept > 1) {
+		queueAccept = 1;
+	}
+#endif
+
+	// Only for this link
 	PetscScalar lambda = packet_generation + link->input_factor*inflow;
+	lambda *= queueAccept;
+
 	PetscScalar q = 1 - exp(-lambda);
+
+#ifdef DELAY
+	PetscScalar qcf = lambda*EDml;
+	PetscScalar qcr = lambda*EDnl;
+	PetscScalar qsucc = lambda*EDsl;
+#else
+        PetscScalar qcf = q;
+	PetscScalar qcr = q;
+	PetscScalar qsucc = q;
+#endif
+
 	PetscInt md = mb - m0;
 
 	PetscScalar bikj = W0*(1-pow(2*alpha,min(m,md+1)))/(1-2*alpha) + (1-pow(alpha,min(m,md+1)))/(1-alpha) + (pow(2,mb)+1)*pow(alpha,md+1)*(1-pow(alpha,max(0,m-md-1)))/(1-alpha);
-	PetscScalar b000 = 1/( 0.5*bikj*geo(y,n+1) + (1-pow(alpha,m))*geo(y,n+1)*(Ls*(1-PnoACK)+Lc*PnoACK) + (1/q)*((1-PnoACK)*(1-pow(alpha,m))*geo(y,n+1) + pow(y,n+1) + pow(alpha,m)*geo(y,n+1)) );
+	//PetscScalar b000 = 1/( 0.5*bikj*geo(y,n+1) + (1-pow(alpha,m))*geo(y,n+1)*(Ls*(1-PnoACK)+Lc*PnoACK) + ((1-qcr)/q)*pow(y,n+1) + ((1-qcf)/q)*(pow(alpha,m)*geo(y,n+1)) + ((1-qsucc)/q)*(1-PnoACK)*(1-pow(alpha,m))*geo(y,n+1) );
+	// in the second part (started with (1/q) it is important to sum up first, because since q is small, (1/q) is very large and thus conceals small differences of the summands
+	PetscScalar b000 = 1/( 0.5*bikj*geo(y,n+1) + (1-pow(alpha,m))*geo(y,n+1)*(Ls*(1-PnoACK)+Lc*PnoACK) + (1/q)*((1-qcr)*pow(y,n+1) + (1-qcf)*(pow(alpha,m)*geo(y,n+1)) + (1-qsucc)*(1-PnoACK)*(1-pow(alpha,m))*geo(y,n+1)) );
+	//PetscScalar b000 = 1/( 0.5*bikj*geo(y,n+1) + (1-pow(alpha,m))*geo(y,n+1)*(Ls*(1-PnoACK)+Lc*PnoACK) + (1/q)*((1-PnoACK)*(1-pow(alpha,m))*geo(y,n+1) + pow(y,n+1) + pow(alpha,m)*geo(y,n+1)) );
+	//PetscScalar b000 = 1/( 0.5*bikj*geo(y,n+1) + (1-pow(alpha,m))*geo(y,n+1)*(Ls*(1-PnoACK)+Lc*PnoACK)
+		        //+ (1/q)*(pow(y,n+1)+(pow(alpha,m)*geo(y,n+1)))
+		       	//+ (1/q)*((1-PnoACK)*(1-pow(alpha,m))*geo(y,n+1)));
 
 	SqMx<6,PetscScalar> PcrMat = SqMx<6,PetscScalar>::zeros();
 
@@ -353,6 +432,7 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGener
 	r->lambda = lambda;
 
 	if(user->betterRetrans) {
+		r->cfdrop = PcrMatRetr.a[2][0];
 		r->Rel = PcrMatRetr.a[2][1];
 	}
 	else {
@@ -362,6 +442,7 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGener
 			sum += pow(Pcoll*(1-am),j);
 		} 
 		r->Rel = 1 - pow(Pcoll*(1-am),n+1) - am*sum;
+		r->cfdrop = -1;
 	}
 
 	r->tau = geo(alpha,m)*geo(y,n+1)*b000;
@@ -371,7 +452,19 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGener
 	r->Pcoll = Pcoll;
 	r->PnoACK = PnoACK;
 	r->packet_generation = packet_generation;
+	r->queueAccept = queueAccept;
+	r->input_factor = link->input_factor;
+#ifdef DELAY
+	r->EDml = EDml;
+	r->EDsl = EDsl;
+	r->EDnl = EDnl;
+#else
+	r->EDml = -1;
+	r->EDsl = -1;
+	r->EDnl = -1;
+#endif
 	link->curR = r->Rel;
+	link->queueAccept = queueAccept;
 
 	PetscFunctionReturn(0);
 }
@@ -396,6 +489,7 @@ PetscErrorCode CalculatePathReliability(DM& circuitdm, DMNetworkComponentGeneric
 
 		ierr = DMNetworkGetVariableOffset(circuitdm,v,&offset);CHKERRQ(ierr);
 		Rx *= xarr[offset+VAR_R]-farr[offset+VAR_R]; // gives result.Rel, see above
+		Rx *= link->queueAccept;
 
 		if(upstream) {
 			next = link->to;

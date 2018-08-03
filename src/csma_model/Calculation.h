@@ -26,10 +26,13 @@
 
 #include "Relations.h"
 
+//#define DELAY
+
 struct _p_LINKDATA{
   PetscInt	from;
   PetscInt	to;
   PetscScalar   packet_generation;
+  PetscScalar   node_packet_generation;
   PetscScalar   input_factor;
   PetscScalar   arrival_factor;
   PetscScalar pcoll;
@@ -37,6 +40,7 @@ struct _p_LINKDATA{
   PetscScalar curR;
   PetscScalar  PER;
   PetscScalar  AER;
+  PetscScalar queueAccept;
 };
 
 typedef struct _p_LINKDATA *LINKDATA;
@@ -88,6 +92,12 @@ typedef struct {
 	PetscScalar PXA[2];
 	PetscScalar PnoACK;
 	PetscScalar packet_generation;
+	PetscScalar queueAccept;
+	PetscScalar input_factor;
+	PetscScalar EDsl;
+	PetscScalar EDml;
+	PetscScalar EDnl;
+	PetscScalar cfdrop;
 } Result;
 
 PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGenericDataType *arr, const PetscScalar *xarr, UserCtx *user, Result *r, bool debug);

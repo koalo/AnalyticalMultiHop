@@ -206,14 +206,17 @@ int main(int argc, char** argv)
 				if(l.up) {
 					// upstream
 					links[i].packet_generation = freqUp*user.Sb;
+					links[i].node_packet_generation = freqUp*user.Sb;
 				}
 				else if(links[i].from == 0) {
 					// downstream - only inner edges
 					links[i].packet_generation = freqDown * user.Sb *
 								links[i].input_factor*(nodes-1);
+					links[i].node_packet_generation = freqDown * user.Sb * (nodes-1);
 				}
 				else {
 					links[i].packet_generation = 0;
+					links[i].node_packet_generation = 0;
 				}
 			}
 			else {
@@ -224,10 +227,12 @@ int main(int argc, char** argv)
 
 				if(l.up) {
 					links[i].packet_generation = 0;
+					links[i].node_packet_generation = 0;
 				}
 				else {
 					int children = route.getDirectChildren(l.source);
 					links[i].packet_generation = freqDown*user.Sb/children;
+					links[i].node_packet_generation = freqDown*user.Sb;
 					cout << l.source << " " << children << " " << links[i].packet_generation << endl;
 				}
 			}
