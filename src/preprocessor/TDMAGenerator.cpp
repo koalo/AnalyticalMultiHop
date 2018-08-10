@@ -154,6 +154,7 @@ public:
 		si = 1;
 
 		if(slotCorrection > 0) {
+			// fixed size schedule (lSTarget > 0)
 			resetChildPointer();
 			int children = 0;
 			for(int child = nextChild(); child != -1; markChildVisited(), child = nextChild()) {
@@ -162,7 +163,6 @@ public:
 			}
 
 			if(children > 0) {
-				// fixed size schedule (lSTarget > 0)
 				//int s = floor(slotCorrection*route->getDescendants(id)); // floor, otherwise it is not guaranteed that all nodes find a free slot
 				int s = floor((maxslots-startslot)/2);
 				if(id == 0) { 
