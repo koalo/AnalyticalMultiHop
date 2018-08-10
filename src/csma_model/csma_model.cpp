@@ -99,7 +99,7 @@ int main(int argc, char** argv)
 
 		user.outerCircle = experiment.getIntermediate<int>("nodesOnOuterCircle");
 
-		int bytesPerACK = 11;
+		int bytesPerACK = 11; // including the preamble, SFD, PHR
 		user.m = experiment.getParameter<int>("MaxNumberOfBackoffs"); // including the first unconditional one! So macMaxCSMABackoffs = MaxNumberOfBackoffs - 1
 		user.m0 = experiment.getParameter<int>("InitialBackoffExponent");
 		user.mb = experiment.getParameter<int>("MaxBackoffExponent");
@@ -185,8 +185,11 @@ int main(int argc, char** argv)
   			links[i].curR = 0;
 
 			double BER = route.getBER(i);
-			links[i].PER = 1 - pow(1 - BER,experiment.getParameter<int>("L")*8);
-			links[i].AER = (1-pow(1 - BER,bytesPerACK*8));
+
+			// L includes the preamble, too, but it is not relevant
+			// for the PER, so subtract 4 octets. Same for ACK.
+			links[i].PER = 1 - pow(1 - BER,(experiment.getParameter<int>("L")-4)*8);
+			links[i].AER = (1-pow(1 - BER,(bytesPerACK-4)*8));
 
 			if(!broadcast) {
 				if(l.up) {
