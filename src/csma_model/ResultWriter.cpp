@@ -78,6 +78,7 @@ PetscErrorCode ResultWriter::store(Vec& X, Vec& F, DM& circuitdm, UserCtx *user,
 		rtree.put("EDsl",result.EDsl);
 		rtree.put("EDml",result.EDml);
 		rtree.put("EDnl",result.EDnl);
+		rtree.put("avgDelay",result.avgDelay);
 #endif
 		rtree.put("cfdrop",result.cfdrop);
 

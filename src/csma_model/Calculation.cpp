@@ -326,7 +326,11 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGener
 	PetscScalar queueAccept = 1;
 #ifdef DELAY
 	// Queue drops
-	queueAccept = 1/(EDsl*(link->node_packet_generation + inflow));
+	PetscScalar avgDelay = pow(y,n+1)*EDnl;
+	avgDelay += (pow(alpha,m)*geo(y,n+1))*EDml;
+	avgDelay += (1-PnoACK)*(1-pow(alpha,m))*geo(y,n+1)*EDsl;
+
+	queueAccept = 1/(avgDelay*(link->node_packet_generation + inflow));
 	if(queueAccept > 1) {
 		queueAccept = 1;
 	}
@@ -458,10 +462,12 @@ inline PetscErrorCode EvaluateLink(DM& circuitdm, int v, DMNetworkComponentGener
 	r->EDml = EDml;
 	r->EDsl = EDsl;
 	r->EDnl = EDnl;
+	r->avgDelay = avgDelay;
 #else
 	r->EDml = -1;
 	r->EDsl = -1;
 	r->EDnl = -1;
+	r->avgDelay = -1;
 #endif
 	link->curR = r->Rel;
 	link->queueAccept = queueAccept;

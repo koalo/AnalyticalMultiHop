@@ -246,7 +246,7 @@ int main(int argc, char** argv)
 				experiment.getRelations());
 
 		/* Read relations */
-		RelationSet relationSet = experiment.getRelations();
+		RelationSet& relationSet = experiment.getRelations();
 		int relationsCount = relationSet.getRelationsCount();
 		numEdges = relationsCount;
 		if(user.inverse) {

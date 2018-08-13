@@ -65,15 +65,18 @@ void RelationsGenerator::create(Experiment& experiment, Route& route, RelationSe
 
 			// v2 is in range of the sender of the uplink (v1)
 			// therefore, each uplink with anchor v2 is in SS
+			// This does not include two links outgoing of
+			// anchor, but there are none in upstream, anyway!
 			SSupup.push_back(v2);
 
 			// if two uplinks are cascaded, mark them as inflow edges for each other
 			Link uplink2 = route.getLinkByAnchor(v2, true);
 			if(uplink.source == uplink2.destination) {
-				relations.insert(REL_IF,uplink.id,uplink2.id,false);
+				relations.insert(REL_IF,uplink.id,uplink2.id);
 			}
 
 			// search for all w2 in range of v2 so that v2->w2 is a downlink
+			// This includes downlinks from anchor, too!
 			auto w2i = route.getAdjacentVertices(v2);
 			for(; w2i.first != w2i.second; w2i.first++) {
 				const graph_traits<Route::Graph>::vertex_descriptor& w2 = *(w2i.first);
@@ -93,6 +96,7 @@ void RelationsGenerator::create(Experiment& experiment, Route& route, RelationSe
 
 			// v2 is in range of the sender of the downlink (v1)
 			// therefore, each uplink with anchor v2 is in SS
+			// This includes anchor, too!
 			SSdownup.push_back(v2);
 
 			// search for all w2 in range of v2 so that v2->w2 is a downlink
@@ -102,12 +106,22 @@ void RelationsGenerator::create(Experiment& experiment, Route& route, RelationSe
 				Link downlink2 = route.getLinkByAnchor(w2, false);
 
 				if(downlink2.source == v2) {
+					// Does not include other downlinks
+					// from downlink.source!
 					SSdowndown.push_back(w2);
 				}
 
 				// if two downlinks are cascaded, mark them as inflow edges for each other
 				if(downlink2.source == downlink.destination) {
-					relations.insert(REL_IF,downlink2.id,downlink.id,false);
+					relations.insert(REL_IF,downlink2.id,downlink.id);
+				}
+			}
+
+			// downlinks with the same source
+			if(v2 != anchor) {
+				Link downlink2 = route.getLinkByAnchor(v2, false);
+				if(downlink2.source == downlink.source) {
+					SSdowndown.push_back(v2);
 				}
 			}
 		}
@@ -137,5 +151,7 @@ void RelationsGenerator::create(Experiment& experiment, Route& route, RelationSe
 		relations.insertSet(REL_RR,downlink.id,RelationSet::UP,SSupdown); 
 		relations.insertSet(REL_RR,downlink.id,RelationSet::DOWN,SSupup); 
 	}
+
+	relations.print();
 }
 

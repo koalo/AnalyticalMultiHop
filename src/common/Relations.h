@@ -23,6 +23,7 @@
 
 #include <map>
 #include <vector>
+#include <fstream>
 
 class Experiment;
 class Route;
@@ -44,12 +45,16 @@ class Relation {
 		bool type[REL_NTYPES];
 
 		Relation();
-		void printSingle(bool val, const char* s);
-		void print();
+		void printSingle(bool val, const char* s, std::fstream& log);
+		void print(std::fstream& log);
 };
 
 class RelationSet {
 	public:
+		void setLogFile(std::string logname) {
+			log.open(logname, std::fstream::out);
+		}
+
 		int getRelationsCount();
 
 		std::map<std::pair<int,int>,Relation>::iterator begin();
@@ -69,7 +74,9 @@ class RelationSet {
 		std::map<char,int> typeCount;
 		std::map<std::pair<int,int>,Relation> relations;
 
-		void insert(enum RelType type, int affected, int source, bool checkMatch = true);
+		std::fstream log;
+
+		void insert(enum RelType type, int affected, int source);
 		void insertSet(enum RelType type, int affected, enum Direction dir, std::vector<int>& set);
 
 		friend RelationsGenerator;

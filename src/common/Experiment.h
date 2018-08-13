@@ -76,6 +76,8 @@ private:
 	Route route;
 	RelationSet relations;
 	TDMASchedule tdma_schedule;
+
+	std::string directory;
 };
 
 #endif

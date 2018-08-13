@@ -97,6 +97,7 @@ typedef struct {
 	PetscScalar EDsl;
 	PetscScalar EDml;
 	PetscScalar EDnl;
+	PetscScalar avgDelay;
 	PetscScalar cfdrop;
 } Result;
 

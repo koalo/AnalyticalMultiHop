@@ -34,38 +34,36 @@ Relation::Relation()
 	type[REL_RR] = false;
 }
 
-void Relation::printSingle(bool val, const char* s)
+void Relation::printSingle(bool val, const char* s, fstream& log)
 {
 	if(!val) {
-		cout << "__";
+		log << "__";
 	}
 	else {
-		cout << s;
+		log << s;
 	}
 }
 
-void Relation::print()
+void Relation::print(fstream& log)
 {
-	printSingle(type[REL_IF],"IF");
-	cout << " ";
-	printSingle(type[REL_SS],"SS");
-	cout << " ";
-	printSingle(type[REL_SR],"SR");
-	cout << " ";
-	printSingle(type[REL_RS],"RS");
-	cout << " ";
-	printSingle(type[REL_RR],"RR");
+	printSingle(type[REL_IF],"IF",log);
+	log << " ";
+	printSingle(type[REL_SS],"SS",log);
+	log << " ";
+	printSingle(type[REL_SR],"SR",log);
+	log << " ";
+	printSingle(type[REL_RS],"RS",log);
+	log << " ";
+	printSingle(type[REL_RR],"RR",log);
 }
 
-void RelationSet::insert(enum RelType type, int affected, int source, bool checkMatch)
+void RelationSet::insert(enum RelType type, int affected, int source)
 {
-	if(checkMatch) {
-		Link alink = route->getLinkById(affected);
-		Link slink = route->getLinkById(source);
+	Link alink = route->getLinkById(affected);
+	Link slink = route->getLinkById(source);
 
-		if(alink.source == slink.source) {
-			return;
-		}
+	if(alink.source == slink.source) {
+		return;
 	}
 
 	std::pair<int,int> rel = make_pair(affected,source);
@@ -99,13 +97,14 @@ void RelationSet::insertSet(enum RelType type, int affected, enum Direction dir,
 
 void RelationSet::print()
 {
-	std::cout << relations.size() << std::endl;
+	log << relations.size() << std::endl;
 	for(std::map<std::pair<int,int>,Relation>::iterator i = relations.begin(); 
 			i != relations.end(); i++) {
-		std::cout << i->first.first << " " << i->first.second << " ";
-		i->second.print();
-		std::cout << std::endl;
+		log << i->first.first+1 << " " << i->first.second+1 << " ";
+		i->second.print(log);
+		log << std::endl;
 	}
+	log.flush();
 }
 
 int RelationSet::getRelationsCount()

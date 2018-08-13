@@ -107,6 +107,8 @@ Route& Experiment::getRoute()
 
 RelationSet& Experiment::getRelations()
 {
+	std::string relations_file = "relations.log";
+	relations.setLogFile((directory / relations_file).string());
 	return relations;
 }
 
@@ -160,6 +162,7 @@ void Experiment::read(std::string experiment_file)
 	// get path relative to experiment file
 	boost::filesystem::path f(experiment_file);
 	boost::filesystem::path dir = f.parent_path();
+	directory = dir.string();
 
 	// read route file
 	route.read((dir / getIntermediate<string>("route_file")).string());
