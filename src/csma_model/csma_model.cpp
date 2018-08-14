@@ -117,7 +117,9 @@ int main(int argc, char** argv)
 			// no broadcast
 		}
 
-		PetscScalar LinSym = 8.0*experiment.getParameter<int>("L")/4.0;
+		// Adding preamble, SFD and PHR to PSDU
+		PetscInt L = experiment.getParameter<int>("PSDU")+6;
+		PetscScalar LinSym = 8.0*L/4.0;
 		user.L = LinSym/20;
 		PetscScalar LackinSym = (bytesPerACK*8.0/4.0);
 		user.Lack = (bytesPerACK/10.0);
@@ -188,7 +190,7 @@ int main(int argc, char** argv)
 
 			// L includes the preamble, too, but it is not relevant
 			// for the PER, so subtract 4 octets. Same for ACK.
-			links[i].PER = 1 - pow(1 - BER,(experiment.getParameter<int>("L")-4)*8);
+			links[i].PER = 1 - pow(1 - BER,(L-4)*8);
 			links[i].AER = (1-pow(1 - BER,(bytesPerACK-4)*8));
 
 			if(!broadcast) {

@@ -106,7 +106,7 @@ class Experiment:
                 "MaxNumberOfRetransmissions": "2",
                 "InitialBackoffExponent": "3",
                 "MaxBackoffExponent": "8",
-                "L": "60",
+                "PSDU": "60",
                 "handleACKs": "1",
                 "betterRetrans": "1",
                 "inverse": "0",
