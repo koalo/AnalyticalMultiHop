@@ -395,6 +395,7 @@ int main(int argc, char** argv)
 	/* HOOK UP SOLVER */
 	ierr = SNESCreate(PETSC_COMM_WORLD,&snes);CHKERRQ(ierr);
 	ierr = SNESSetDM(snes,circuitdm);CHKERRQ(ierr);
+	ierr = SNESSetJacobian(snes,NULL,NULL,SNESComputeJacobianDefault,0);CHKERRQ(ierr);
 	ierr = SNESSetFunction(snes,F,FormFunction,&user);CHKERRQ(ierr);
 	ierr = SNESSetFromOptions(snes);CHKERRQ(ierr);
 
