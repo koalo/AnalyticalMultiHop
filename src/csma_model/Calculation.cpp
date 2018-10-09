@@ -510,6 +510,10 @@ PetscErrorCode CalculatePathReliability(DM& circuitdm, DMNetworkComponentGeneric
 	PetscFunctionReturn(0);
 }
 
+PetscScalar sigInv(PetscScalar y) {
+	return log(y/(1-y));
+}
+
 #undef __FUNCT__
 #define __FUNCT__ "FormFunction"
 PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx)
@@ -583,15 +587,7 @@ PetscErrorCode FormFunction(SNES snes,Vec X, Vec F,void *appctx)
 
 		ierr = DMNetworkGetVariableOffset(circuitdm,vEnd,&offset);CHKERRQ(ierr);
 
-		// in order to avoid zero pivot
-		if(R >= 0.9999) {
-			R += xarr[offset];
-		}
-		else {
-			R += 0.00001*xarr[offset];
-		}
-
-		farr[offset] = R-user->inverse;
+		farr[offset] = sigInv(R)-sigInv(user->inverse);
 	}
 
 	ierr = VecRestoreArrayRead(localX,&xarr);CHKERRQ(ierr);
