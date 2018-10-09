@@ -6,11 +6,12 @@ The implementation of an analytical model for the assessment of multi-hop networ
 
 ## Literature
 
-Florian Meier, Volker Turau. Analytical Model for IEEE 802.15.4 Multi-Hop Networks with Improved Handling of Acknowledgements and Retransmissions. arXiv:1501.07594 [cs.NI]. <a href="https://arxiv.org/abs/1501.07594">https://arxiv.org/abs/1501.07594</a>
+Florian Kauer and Volker Turau, An Analytical Model for Wireless Mesh Networks with Collision-Free TDMA and Finite Queues, EURASIP Journal on Wireless Communications and Networking 2018:149, June 2018. <a href="https://doi.org/10.1186/s13638-018-1146-x">https://doi.org/10.1186/s13638-018-1146-x</a>
 
-Florian Meier, Volker Turau. An Analytical Model for Fast and Verifiable
-Assessment of Large Scale Wireless Mesh Networks, in Proceedings
-of the 11th International Conference on the Design of Reliable Communication Networks (DRCN). Kansas City, MO, USA, Mar. 2015. <a href="http://ieeexplore.ieee.org/document/7149011/">http://ieeexplore.ieee.org/document/7149011/</a>
+Florian Meier and Volker Turau, Analytical Model for IEEE 802.15.4 Multi-Hop Networks with Improved Handling of Acknowledgements and Retransmissions. arXiv:1501.07594 [cs.NI]. <a href="https://arxiv.org/abs/1501.07594">https://arxiv.org/abs/1501.07594</a>
+
+Florian Meier and Volker Turau, An Analytical Model for Fast and Verifiable Assessment of Large Scale Wireless Mesh Networks in Proceedings of the 11th International Conference on the Design of Reliable Communication Networks (DRCN), Kansas City, MO, USA, March 2015. <a href="https://doi.org/10.1109/DRCN.2015.7149011">https://doi.org/10.1109/DRCN.2015.7149011</a>
+
 
 ## Installation
 
